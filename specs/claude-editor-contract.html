@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="spec-status" content="done" />
+<meta name="spec-priority" content="25" />
+<meta name="spec-priority-why" content="Two specs needed the same protocol. Defining it once made the hover comment a wrapper rather than a second integration — and gave the client one code path to apply results instead of two." />
+<meta name="spec-needs" content="live-doc-core" />
+<meta name="spec-touches" content="src/claude.ts src/room.ts" />
+<meta name="spec-decision" content="Which model? Recommended CLAUDE-OPUS-5 AT MEDIUM EFFORT. This is short-form editing against a fixed style guide, not a reasoning problem — Opus 5 at medium is already well past what it needs, and it keeps the round trip inside a few seconds, which matters when four people are watching a block spin. Revisit only if edits come back wrong, not if they come back slow." />
+<meta name="spec-decision" content="How much of the document does Claude see? Recommended FULL OUTLINE ALWAYS, FULL HTML SCOPED BY SURFACE. Chat sends every block (it may need to touch anything); a hover comment sends only the commented block's section. That makes the comment path roughly a tenth the cost of chat, which matters against a $28 credit balance." />
+<title>Spec — The Claude editing contract</title>
+<link rel="stylesheet" href="spec.css" />
+</head>
+<body>
+
+<div class="internal">Internal planning document — <b>not part of the site</b> · never serve <code>specs/</code></div>
+<div class="countdown">Departure <b>Sat 8 Aug 2026</b></div>
+
+<div class="wrap">
+
+<p><a href="index.html">← Specs index</a></p>
+
+<h1>The Claude editing contract</h1>
+<p class="meta">Status: done <span class="tag tag-done">done</span> · created Aug 5, 2026 · shipped Aug 5, 2026 · priority 25</p>
+
+<p class="lede">
+  Both AI surfaces — <a href="chat-edits-the-doc.html">the chat box</a> and
+  <a href="hover-comment-to-edit.html">the hover comment</a> — reduce to the same thing:
+  <strong>a list of block operations against the document.</strong> This spec is that list.
+</p>
+
+<div class="callout">
+  <h4>Why this is its own spec rather than a section of two others</h4>
+  <p>
+    Written twice, the two paths drift: the chat learns to emit tables and the comment path doesn't, or
+    one sanitises inserts and the other forgets. Written once, <strong>the hover comment is a
+    three-line wrapper</strong> — same schema, same system prompt, one extra sentence naming the focused
+    block — and the client needs one apply-ops function instead of two.
+  </p>
+</div>
+
+<h2 id="ops">The operations</h2>
+
+<pre><code>type Op =
+  | { op: "replace"; id: string; html: string }
+  | { op: "insert";  section: string; afterId: string | null; html: string }
+  | { op: "delete";  id: string }
+  | { op: "move";    id: string; section: string; afterId: string | null }
+
+interface EditResult { reply: string; ops: Op[] }</code></pre>
+
+<p>
+  <code>reply</code> is one or two sentences for the chat panel. <code>ops</code> is empty when the user
+  asked a question rather than requested a change — which is a case worth naming explicitly, because a
+  model that always returns an op will invent one.
+</p>
+
+<h3>Structured output, not parsed prose</h3>
+<p>
+  The request sets <code>output_config.format</code> to a JSON schema, so the shape is enforced at the
+  API rather than hoped for. Without it the model returns prose-wrapped JSON perhaps 95% of the time —
+  and the other 5% is a failed edit in front of four friends. The schema is also where
+  <code>afterId: null</code> is made explicit as "first in the section", which the model otherwise
+  guesses at.
+</p>
+
+<h2 id="prompt">The system prompt does three jobs</h2>
+
+<table>
+<thead><tr><th>Job</th><th>Why it's in the prompt rather than the code</th></tr></thead>
+<tbody>
+<tr>
+  <td><strong>House style.</strong> Names the real classes — <code>.card</code>, <code>.flag</code>,
+    <code>.tw</code>, the <code>.pill</code> vocabulary — and says which means what.</td>
+  <td>An AI edit that invents its own markup is visibly an AI edit. Reusing the existing classes is what
+    makes a Claude-written card indistinguishable from a Rosetta-written one.</td>
+</tr>
+<tr>
+  <td><strong>Never invent a fact.</strong> No prices, hours, availability or flight numbers that weren't
+    in the document or the message. Where a change implies a fact it doesn't have, write the gap visibly
+    and flag it in the reply.</td>
+  <td>This is the rule that matters most. The document <em>already has a section</em> about what couldn't
+    be confirmed; the fastest way to make it untrustworthy is to let a model quietly add to that pile with
+    a plausible-looking price.</td>
+</tr>
+<tr>
+  <td><strong>Prefer replace over delete-plus-insert.</strong></td>
+  <td>Rewriting in place keeps the block's id, its position, and its history — so
+    <a href="presence-and-history.html">undo</a> stays comprehensible and the section nav keeps working.</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout warn">
+  <h4>Ops are applied unconditionally, and that is deliberate</h4>
+  <p>
+    A human edit carries the <code>baseRev</code> it was typed against and is refused if stale. Claude's
+    ops carry no rev — they were computed against whatever the DO held a few seconds ago. The code
+    therefore reads the block's current rev and writes with it, which is a compare-and-set that always
+    passes.
+  </p>
+  <p>
+    The alternative — refusing an AI edit because someone fixed a typo mid-request — produces a
+    silent no-op that reads to the user as "Claude ignored me". Given the choice between an AI edit
+    that occasionally lands on top of a two-second-old typo fix and an AI edit that sometimes silently
+    does nothing, the first is recoverable in one click and the second is a bug report.
+  </p>
+</div>
+
+<h2 id="safety">Two limits that are not about the model</h2>
+<ul>
+  <li><strong>Every op's html goes through the same server-side sanitiser as a human edit.</strong> Claude
+    will emit a <code>&lt;script&gt;</code> if something it reads tells it to, and this document will
+    contain pasted text from festival pages and booking confirmations.</li>
+  <li><strong>Max 40 ops per response, and one failed op doesn't sink the rest.</strong> A malformed op is
+    skipped and the others still apply, so a single bad id doesn't turn a six-change request into nothing.</li>
+</ul>
+
+<h2 id="verify">Verification</h2>
+<ol>
+  <li>Ask for a change to a named block; confirm exactly that block changes and its markup uses the
+    existing classes.</li>
+  <li>Ask a question ("what's still unbooked?") and confirm <code>ops</code> is empty and nothing moves.</li>
+  <li>Ask for something requiring a fact it can't have ("add the price of the Fimmvörðuháls hike") and
+    confirm it writes the gap visibly rather than inventing a number.</li>
+  <li>Send an instruction crafted to produce a script tag and confirm the sanitiser strips it server-side.</li>
+</ol>
+
+</div>
+</body>
+</html>

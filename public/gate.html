@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Iceland 2026</title>
+<style>
+  :root{ --bg:#0c0f16; --panel:#141926; --line:#28314a; --ink:#e9ecf4;
+         --dim:#9aa4bd; --gold:#e8b95c; --violet:#9b8cf0; --teal:#5fc9c0; --coral:#e87d6a; }
+  *{box-sizing:border-box}
+  body{
+    margin:0; min-height:100dvh; display:grid; place-items:center; padding:24px;
+    background:
+      radial-gradient(900px 420px at 50% -80px, rgba(155,140,240,.22), transparent 70%),
+      radial-gradient(600px 300px at 80% 60px, rgba(95,201,192,.13), transparent 70%),
+      var(--bg);
+    color:var(--ink);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .card{width:100%;max-width:390px;text-align:center}
+  .corona{
+    width:60px;height:60px;border-radius:50%;margin:0 auto 26px;background:var(--bg);
+    box-shadow:0 0 0 2px #f4dfa8, 0 0 26px 8px rgba(244,223,168,.45), 0 0 70px 24px rgba(155,140,240,.28);
+  }
+  .eyebrow{font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--gold);font-weight:600}
+  h1{margin:14px 0 4px;font-size:38px;letter-spacing:-.02em;font-weight:700}
+  .sub{color:var(--dim);font-size:14.5px;margin-bottom:32px}
+  label{display:block;text-align:left;font-size:11.5px;letter-spacing:.14em;
+        text-transform:uppercase;color:var(--dim);margin:0 0 8px;font-weight:600}
+  input{
+    width:100%;padding:13px 15px;border-radius:10px;border:1px solid var(--line);
+    background:var(--panel);color:var(--ink);font-size:16px;font-family:inherit;
+  }
+  input:focus{outline:none;border-color:var(--violet);box-shadow:0 0 0 3px rgba(155,140,240,.18)}
+  .go{
+    width:100%;margin-top:14px;padding:13px 15px;border-radius:10px;cursor:pointer;
+    border:1px solid rgba(155,140,240,.55);background:var(--violet);color:#12101f;
+    font:650 15.5px inherit;transition:filter .12s;
+  }
+  .go:hover{filter:brightness(1.08)}
+  .hint{margin-top:26px;color:#6f7a95;font-size:12.5px;line-height:1.5}
+  .bad{
+    display:{{BAD}}; margin:0 0 18px; padding:10px 14px; border-radius:8px; font-size:14px;
+    background:rgba(232,125,106,.1); border-left:3px solid var(--coral); color:#f0a494; text-align:left;
+  }
+</style>
+</head>
+<body>
+  <form class="card" method="POST" action="/auth">
+    <div class="corona"></div>
+    <div class="eyebrow">Total Solar Eclipse · 12 August 2026</div>
+    <h1>Iceland</h1>
+    <div class="sub">Aug 8–19 · Reykjavík &amp; Snæfellsnes</div>
+
+    <div class="bad">I don't know that name. First name is enough.</div>
+
+    <input type="hidden" name="next" value="{{NEXT}}">
+
+    <label for="passcode">Your name</label>
+    <!-- type=text, not password: it's a name, there is nothing to shoulder-surf,
+         and a masked field on a phone means typos you can't see. Capitalisation
+         and a surname both work — matching is a lowercased prefix. -->
+    <input id="passcode" name="passcode" type="text" autocomplete="given-name"
+           placeholder="Rosetta" autocorrect="off" spellcheck="false" required autofocus>
+
+    <button type="submit" class="go">Open the plan</button>
+
+    <p class="hint">Just your first name — it's how the others<br>see who changed what.</p>
+  </form>
+</body>
+</html>

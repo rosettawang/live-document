@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="spec-status" content="done" />
+<meta name="spec-priority" content="5" />
+<meta name="spec-priority-why" content="Sorts first not because it is important but because it is SLOW and someone else's clock: a Namecheap nameserver change takes hours to propagate and nothing can make it faster. Start it now so it is finished by the time live-doc-core needs somewhere to live. Everything else can ship to workers.dev meanwhile." />
+<meta name="spec-account" content="yes" />
+<meta name="spec-resolved" content="Aug 5, 2026. Zone added via the dashboard, nameservers changed at Namecheap (cullen/ryleigh.ns.cloudflare.com), propagated in about 4.5 minutes, custom-domain route deployed. https://iceland.rosettawang.org serves the gate with a valid certificate." />
+<meta name="spec-touches" content="wrangler.toml" />
+<meta name="spec-decision" content="Apex or subdomain only? Recommended WIRE iceland.rosettawang.org AND LEAVE THE APEX ALONE. rosettawang.org resolves to nothing today (dig, Aug 5 2026) and pointing it somewhere is a separate decision about a personal site she has not asked for. A zone can hold one custom-domain route without committing the apex to anything." />
+<title>Spec — Wiring iceland.rosettawang.org</title>
+<link rel="stylesheet" href="spec.css" />
+</head>
+<body>
+
+<div class="internal">Internal planning document — <b>not part of the site</b> · never serve <code>specs/</code></div>
+<div class="countdown">Departure <b>Sat 8 Aug 2026</b> · DNS is the one step nobody can hurry</div>
+
+<div class="wrap">
+
+<p><a href="index.html">← Specs index</a></p>
+
+<h1>Wiring <code>iceland.rosettawang.org</code></h1>
+<p class="meta">Status: done <span class="tag tag-done">done</span> · created Aug 5, 2026 · shipped &amp; verified Aug 5, 2026 · priority 5</p>
+
+<p class="lede">
+  <strong>Rosetta, Aug 5, 2026:</strong> <em>"wire to iceland.rosettawang.org i just bought on namecheap."</em>
+  The domain is registered and pointing at nothing. Cloudflare has never heard of it.
+</p>
+
+<div class="callout warn">
+  <h4>This spec is first in the order and is not the first thing to finish</h4>
+  <p>
+    It sorts to the top because <strong>the slow part is a stranger's DNS cache</strong>, not because the
+    document depends on it. Kick off the two account steps below now; then build
+    <a href="live-doc-core.html">live-doc-core</a> against
+    <code>iceland-doc.&lt;subdomain&gt;.workers.dev</code> while propagation happens in the background.
+  </p>
+  <p>
+    <strong>Do not let this gate sharing the link.</strong> If Thursday arrives and the nameservers have not
+    flipped, send the friends the <code>workers.dev</code> URL. It is the same Worker; the custom domain is
+    a nicety, and the trip is not.
+  </p>
+</div>
+
+<div class="callout">
+  <h4>Live as of Aug 5, 2026 — what was actually done, in order</h4>
+  <ol>
+    <li>Zone added to Cloudflare via the dashboard (the CLI token cannot — verified refused).</li>
+    <li>Namecheap &rarr; Custom DNS &rarr; <code>cullen.ns.cloudflare.com</code>,
+      <code>ryleigh.ns.cloudflare.com</code>, saved.</li>
+    <li>Nameservers visible on a public resolver <strong>~4.5 minutes later</strong>. Namecheap warns "up to
+      48 hours", which is a worst case for a domain that has never had traffic, not an estimate.</li>
+    <li><code>routes</code> added to <code>wrangler.jsonc</code> and deployed. Cloudflare created the proxied
+      record and issued the certificate itself; no record was added by hand.</li>
+  </ol>
+  <p>
+    Against the live domain: <code>/</code> and <code>/packing</code> both 200,
+    <code>x-robots-tag: noindex</code> present, TLS verified, and all four crew words resolve to the right
+    person while a bare first name is rejected.
+  </p>
+</div>
+
+<div class="callout warn">
+  <h4>The trap in step 4: declaring a route silently turns <code>workers.dev</code> OFF</h4>
+  <p>
+    <code>wrangler deploy</code> mentions it in a passing warning and proceeds. For the minutes between that
+    deploy and DNS propagating, <strong>there was no working URL at all</strong> — the old link had been
+    disabled and the new one did not resolve yet. Fixed by setting <code>"workers_dev": true</code>
+    explicitly.
+  </p>
+  <p>
+    Keep it that way. The <code>workers.dev</code> URL is what still works if anything goes wrong with the
+    domain while four people are in Iceland relying on the document.
+  </p>
+</div>
+
+<h2 id="state">Starting state, verified Aug 5, 2026</h2>
+
+<table>
+<thead><tr><th>Check</th><th>Command</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Does the domain resolve?</td><td><code>dig +short NS rosettawang.org</code></td><td><strong>Empty.</strong> No nameservers. Freshly registered, nothing configured.</td></tr>
+<tr><td>Any A record?</td><td><code>dig +short rosettawang.org</code></td><td>Empty</td></tr>
+<tr><td>Subdomain?</td><td><code>dig +short iceland.rosettawang.org</code></td><td>Empty</td></tr>
+<tr><td>Cloudflare zones on the account</td><td><code>GET /client/v4/zones</code></td><td><code>laurelate.com</code> (active), <code>whrfund.org</code> (active). <strong>No <code>rosettawang.org</code>.</strong></td></tr>
+<tr><td>Cloudflare account</td><td><code>wrangler whoami</code></td><td>rosetta@laurelate.com · <code>7609ab5b3375ab5cff0b3b3e0dad60d9</code></td></tr>
+<tr><td>Can the CLI token add the zone?</td><td><code>POST /client/v4/zones</code> (actually attempted)</td><td><strong>No.</strong> <code>Requires permission "com.cloudflare.api.account.zone.create"</code>. The OAuth token has <code>zone (read)</code> only.</td></tr>
+<tr><td>Can it add the route once the zone exists?</td><td>token scopes</td><td><strong>Yes</strong> — <code>workers_routes (write)</code>, <code>workers_scripts (write)</code>, <code>ssl_certs (write)</code></td></tr>
+</tbody>
+</table>
+
+<div class="callout ask">
+  <h4>Login pass — two items, both hers, five minutes total</h4>
+  <ol>
+    <li>
+      <strong>Add <code>rosettawang.org</code> to Cloudflare.</strong> dash.cloudflare.com → Add a site →
+      <code>rosettawang.org</code> → Free plan. There is nothing to import; the zone is empty. Cloudflare
+      then shows <strong>two assigned nameservers</strong> — those are the values step 2 needs, and they are
+      account-specific, so they cannot be written down here in advance.
+      <br><em>Why she has to: creating a zone needs <code>zone.create</code>, which the CLI token was
+      tested against and refused. This is the token's own limit, not a policy choice.</em>
+    </li>
+    <li>
+      <strong>Point Namecheap at them.</strong> namecheap.com → Domain List → <code>rosettawang.org</code> →
+      Manage → Nameservers → <strong>Custom DNS</strong> → paste both Cloudflare nameservers → save (the
+      green tick, easy to miss).
+      <br><em>Why she has to: Namecheap is a registrar account with her login, and there is no API key
+      configured for it.</em>
+    </li>
+  </ol>
+  <p style="margin-top:.7rem">
+    Then it is hands-off. Cloudflare emails when the zone goes active; typically under an hour on a fresh
+    domain with no prior nameservers to expire, occasionally several. <strong>Nothing about this is worth
+    watching</strong> — go build the document.
+  </p>
+</div>
+
+<h2 id="after">What happens after the zone is active — no further human needed</h2>
+
+<p>
+  The custom domain is declared in <code>wrangler.toml</code> and applied by a deploy. Cloudflare creates
+  the proxied DNS record and issues the certificate itself; there is no record to add by hand and no
+  Namecheap DNS to configure, because the nameserver change moved DNS to Cloudflare wholesale.
+</p>
+
+<pre><code>[[routes]]
+pattern = "iceland.rosettawang.org"
+custom_domain = true</code></pre>
+
+<pre><code>npx wrangler deploy</code></pre>
+
+<h3>Then verify it for real, in this order</h3>
+<pre><code>dig +short NS rosettawang.org                      # expect the two Cloudflare NS
+dig +short iceland.rosettawang.org                 # expect Cloudflare proxy IPs
+curl -sI https://iceland.rosettawang.org | head -1 # expect HTTP/2 200, not 301/403/526</code></pre>
+<p>
+  <strong>Check the certificate, not just the status line.</strong> A brand-new custom domain serves
+  <code>526</code> or a browser warning for a few minutes while the edge cert is issued, and that window is
+  long enough to look like a broken deploy and send someone editing config that was already correct. If
+  <code>curl</code> is happy but Safari is not, wait five minutes before touching anything.
+</p>
+
+<div class="callout">
+  <h4>One thing to get right the first time: this is a public URL with no index</h4>
+  <p>
+    A trip document at a guessable subdomain, containing four people's flight numbers, arrival times and
+    where they are sleeping, should not be in a search index. Serve
+    <code>X-Robots-Tag: noindex, nofollow</code> from the Worker on every response and ship
+    <code>/robots.txt</code> with <code>Disallow: /</code>. That is two lines during the build and
+    an unpleasant email to write later. Access control itself is
+    <a href="access-and-identity.html">access-and-identity</a>; this is only the crawler.
+  </p>
+</div>
+
+<details class="fold">
+  <summary>Rejected: keeping DNS at Namecheap and pointing a CNAME<span class="hint">why the nameserver move is the lesser hassle</span></summary>
+  <div class="body">
+    <p>
+      A Worker can be reached by a CNAME from an external DNS provider, but Cloudflare custom domains want
+      the zone in the account to issue the certificate and to route without the request leaving for
+      Namecheap's resolvers first. Doing it the CNAME way means a CNAME-flattening problem at the apex
+      later, a manual certificate story, and a second dashboard to remember. The nameserver move is one
+      paste, once, and afterwards every subdomain of <code>rosettawang.org</code> is one line of
+      <code>wrangler.toml</code> forever — which matters the moment there is a second thing on this domain.
+    </p>
+    <p>
+      It is also the pattern already running twice in this account: <code>whrfund.org</code> and
+      <code>laurelate.com</code> are both full Cloudflare zones.
+    </p>
+  </div>
+</details>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="spec-status" content="canonical" />
+<title>Iceland 2026 — specs index</title>
+<link rel="stylesheet" href="spec.css" />
+</head>
+<body>
+
+<div class="internal">Internal planning document — <b>not part of the site</b> · never serve <code>specs/</code></div>
+<div class="countdown">Departure <b>Sat 8 Aug 2026</b> · three days from the day these were written</div>
+
+<div class="wrap">
+
+<h1 id="top">Iceland 2026 — live document</h1>
+<p class="meta">Canonical map <span class="tag tag-canonical">canonical</span> · written Aug 5, 2026 · never pruned</p>
+
+<nav class="index-nav" aria-label="Sections">
+  <a href="#live">What's live</a>
+  <a href="#login">Login pass</a>
+  <a href="#decisions">Decisions</a>
+  <a href="#order">Order</a>
+  <a href="#specs">Specs</a>
+  <a href="#how">How this works</a>
+  <a class="to-top" href="#top">Top</a>
+</nav>
+
+<p class="lede">
+  Turning a 55&nbsp;KB static trip plan into something four friends can edit together from their phones,
+  with Claude able to rewrite any part of it on request. Built Aug 5, 2026, three days before departure.
+</p>
+
+<h2 id="live">What's live right now</h2>
+
+<div class="callout">
+  <h4>Deployed and working, verified Aug 5–6, 2026</h4>
+  <p>
+    <strong><a href="https://iceland.rosettawang.org">iceland.rosettawang.org</a></strong> — trip plan at
+    <code>/</code>, packing list at <code>/packing</code>. Sign in with your first name. Usable now.
+    <a href="https://iceland-doc.rosetta-760.workers.dev">iceland-doc.rosetta-760.workers.dev</a> is kept
+    alive deliberately as the fallback if anything goes wrong with the domain mid-trip.
+  </p>
+  <p><strong>Exercised, not assumed</strong> — each of these was run against a real server on Aug 5, 2026:</p>
+  <ul>
+    <li>Gate serves to a request with no cookie; signing in reaches the document — checked on the real
+      domain as well as workers.dev.</li>
+    <li>Name matching, 21 cases on the live domain: <code>Rosetta</code> / <code>rosetta</code> /
+      <code>ROSETTA</code> / <code>Rosetta Wang</code> → Rosetta; <code>Kenia</code>, <code>Kenya</code>,
+      <code>kenia jones</code> → Kenya; <code>Ed</code>, <code>Ed Smith</code>, <code>Edward</code> → Ed;
+      <code>ben chen</code> → Ben. <code>Dave</code>, <code>x</code> and an empty submission rejected. A
+      signed-in <code>/packing</code> request lands back on <code>/packing</code>.</li>
+    <li>46 blocks render into 9 sections; the two side-by-side cards still sit side by side.</li>
+    <li>Edit in one browser tab appears in a second tab in about a second, no reload.</li>
+    <li>Undo restores the previous text, in both tabs.</li>
+    <li><code>/packing</code> seeds its own 48 blocks, independently, with a working cross-link.</li>
+    <li>No console errors on either page.</li>
+  </ul>
+  <div class="callout warn" style="margin-top:1rem">
+    <h4>Three fixes the test pass produced — all shipped Aug 5, 2026</h4>
+    <ol>
+      <li><strong>Rotating <code>DOC_PASSCODE</code> silently bricks every open tab.</strong> Cookies are
+        signed with it, so a rotation invalidates them all — and the page kept looking alive: the socket
+        retried forever against gate HTML and fetches tried to <code>JSON.parse</code> it. API and socket
+        paths now return <strong>401</strong>, and the client turns three straight failures into a visible
+        "Signed out — sign in again". This is not a rare path; the secret was rotated twice on the first
+        day.</li>
+      <li><strong>Popovers used page coordinates.</strong> The hover strip and comment box were
+        <code>position:absolute</code> at <code>scrollY + rect.top</code>, which lets them extend the
+        document. Now <code>position:fixed</code> in viewport coordinates, clamped on screen.</li>
+      <li><strong>Assets were cacheable forever.</strong> A fixed <code>app.js</code> deployed to
+        Cloudflare while a browser kept running the old one. The shell now links
+        <code>app.js?v=&lt;hash&gt;</code>, so a reload always gets the current client — which matters for
+        a page four people leave open for eleven days and will never think to hard-refresh.</li>
+    </ol>
+  </div>
+  <p><strong>Full test pass on the live domain, Aug 5, 2026 — 18/18 automated checks plus the two
+  things automation can't see:</strong></p>
+  <ul>
+    <li><strong>Two people, two sockets, one document.</strong> Rosetta and Ed connected simultaneously
+      with their own words; presence reported <code>["Ed","Rosetta"]</code>; Rosetta's edit reached Ed
+      attributed to her; undo restored it. This is the feature, and it is the first test with two
+      <em>different</em> identities rather than two tabs of one.</li>
+    <li><strong>Document isolation.</strong> No block id is shared between the trip plan and the packing
+      list, and an unknown <code>?doc=</code> falls back to the trip plan rather than minting an empty
+      Durable Object that looks like the real one having lost everything.</li>
+    <li><strong>Unauthenticated surface.</strong> Every path returns the gate or a 401 — no document
+      content, and critically <em>no model call</em>, so a stranger cannot spend the balance.</li>
+    <li><strong>Left clean.</strong> After testing, the live document diffs byte-identical to the original
+      seed across all 46 blocks.</li>
+  </ul>
+  <p><strong>The AI paths:</strong></p>
+  <ul>
+    <li><strong>Chat</strong> — "what is still unbooked?" answered accurately from the document,
+      <code>applied: 0</code> because it correctly read a question as a question, ~8.5s.</li>
+    <li><strong>Hover comment</strong> — added one bullet to the open-questions block, left the other six
+      untouched, attributed the block to <code>claude</code>, and <em>declined to invent a rental-car
+      price</em>, flagging the gap in its reply instead. Undo restored it.</li>
+  </ul>
+</div>
+
+<h2 id="login">Login pass — nothing outstanding</h2>
+
+<div class="callout ask">
+  <h4>1. Set the crew list. <em>Done Aug 6, 2026 — kept here for adding or changing a person.</em></h4>
+  <pre style="margin:.6rem 0"><code>npx wrangler secret put DOC_PASSCODE</code></pre>
+  <pre style="margin:.6rem 0"><code>Rosetta:&lt;match&gt;,Kenya:&lt;match&gt;,Kenya:&lt;alt-spelling&gt;,Ed:&lt;match&gt;,Ben:&lt;match&gt;</code></pre>
+  <p class="dim">The live values are not written down here on purpose — they are in the <code>DOC_PASSCODE</code> secret, and this folder is in a public repository. <code>npx wrangler secret list</code> confirms it is set; nothing but Cloudflare knows what it says.</p>
+  <p>
+    <strong>You type your name.</strong> Case-insensitive prefix, so a surname is fine —
+    <code>Ed</code>, <code>ed</code>, <code>Ed Smith</code> and <code>Edward</code> all arrive as Ed.
+    Kenya has two entries so both spellings work. Adding a fifth person is one command and no deploy;
+    see <a href="access-and-identity.html">access-and-identity</a>.
+  </p>
+</div>
+
+<div class="callout ask">
+  <h4>2. Set the Anthropic key. <em>Done Aug 5, 2026 — AI features verified working.</em></h4>
+  <pre style="margin:.6rem 0"><code>npx wrangler secret put ANTHROPIC_API_KEY</code></pre>
+  <p>
+    Set by Rosetta Aug 5, 2026. An earlier <code>iceland-doc</code> key was lost before it reached the
+    Worker — <code>.dev.vars</code> was overwritten by a build step and an API key's value is shown once.
+    Check the Console for an unused key of that name and delete it.
+  </p>
+  <p class="dim">
+    Secrets go through <code>wrangler secret put</code> rather than a file for exactly this reason: it is
+    the one place a build script cannot clobber, and it is the only path where the value is never written
+    to disk in the project.
+  </p>
+</div>
+
+<p class="dim">
+  Items 3 and 4 — the Cloudflare zone, the Namecheap nameserver change, and the custom-domain route — were
+  completed Aug 5, 2026. <code>iceland.rosettawang.org</code> is live. See
+  <a href="domain-wiring.html">domain-wiring</a>.
+</p>
+
+<h2 id="decisions">Decisions waiting on Rosetta</h2>
+
+<ul class="spec-decision-list">
+  <li>
+    <a href="presence-and-history.html">presence-and-history</a>
+    <ul>
+      <li><strong>Should Undo be global or per person?</strong> Recommended <strong>keep global for
+        now</strong>. At four people it is usually right and occasionally startling. The honest reason it
+        isn't per-person is that it wasn't needed before departure.</li>
+    </ul>
+  </li>
+  <li>
+    <a href="hover-comment-to-edit.html">hover-comment-to-edit</a>
+    <ul>
+      <li><strong>Does a comment leave a visible thread?</strong> Recommended <strong>no — just change the
+        block</strong> and log it in the chat panel. A comment thread is a second inbox to keep on top of
+        during a trip.</li>
+    </ul>
+  </li>
+  <li>
+    <a href="domain-wiring.html">domain-wiring</a>
+    <ul>
+      <li><strong>What should <code>rosettawang.org</code> itself serve?</strong> The subdomain is wired
+        and the apex is deliberately untouched — pointing it somewhere is a decision about a personal site
+        you haven't asked for. Nothing breaks while it stays unanswered.</li>
+    </ul>
+  </li>
+</ul>
+
+<h2 id="order">Execution order</h2>
+
+<!-- GENERATED:EXECUTION-ORDER — hand-derived Aug 5, 2026. There is no
+     plan-specs.mjs in this project yet; if one is ported from whrfund-website,
+     it writes between these markers. -->
+<ol>
+  <li><a href="domain-wiring.html">domain-wiring</a> <span class="tag tag-done">done</span> — live on iceland.rosettawang.org.</li>
+  <li><a href="live-doc-core.html">live-doc-core</a> <span class="tag tag-done">done</span></li>
+  <li><a href="access-and-identity.html">access-and-identity</a> <span class="tag tag-done">done</span></li>
+  <li><a href="direct-editing.html">direct-editing</a> <span class="tag tag-done">done</span></li>
+  <li><a href="claude-editor-contract.html">claude-editor-contract</a> <span class="tag tag-done">done</span></li>
+  <li><a href="hover-comment-to-edit.html">hover-comment-to-edit</a> <span class="tag tag-done">done</span></li>
+  <li><a href="two-documents.html">two-documents</a> <span class="tag tag-done">done</span></li>
+  <li><a href="chat-edits-the-doc.html">chat-edits-the-doc</a> <span class="tag tag-done">done</span></li>
+  <li><a href="presence-and-history.html">presence-and-history</a> <span class="tag tag-open">open</span> — partly shipped</li>
+</ol>
+<!-- /GENERATED:EXECUTION-ORDER -->
+
+<h2 id="specs">Specs</h2>
+
+<ul class="spec-list">
+  <li>
+    <a href="live-doc-core.html">live-doc-core</a> <span class="tag tag-done">done</span>
+    <p>The document as an ordered list of blocks in a Durable Object, synced over hibernating WebSockets.
+      Everything else is a feature of this.</p>
+  </li>
+  <li>
+    <a href="direct-editing.html">direct-editing</a> <span class="tag tag-done">done</span>
+    <p>Click a line and type. The only editing surface that needs no API key — if the key never gets set,
+      this alone still replaces the group chat.</p>
+  </li>
+  <li>
+    <a href="access-and-identity.html">access-and-identity</a> <span class="tag tag-done">done</span>
+    <p>One shared passcode, a name you pick, and a daily AI cap per person.</p>
+    <p class="blocker"><strong>Waiting:</strong> the <code>DOC_PASSCODE</code> secret. Until it is set the
+      site returns 503 with instructions.</p>
+  </li>
+  <li>
+    <a href="claude-editor-contract.html">claude-editor-contract</a> <span class="tag tag-done">done</span>
+    <p>One block-operation protocol shared by both AI surfaces, with the house-style rules and the
+      never-invent-a-fact rule in the system prompt.</p>
+  </li>
+  <li>
+    <a href="two-documents.html">two-documents</a> <span class="tag tag-done">done</span>
+    <p>Trip plan at <code>/</code>, packing list at <code>/packing</code>, one Durable Object each.</p>
+  </li>
+  <li>
+    <a href="hover-comment-to-edit.html">hover-comment-to-edit</a> <span class="tag tag-done">done</span>
+    <p>Hover any block, say what's wrong in your own words, Claude rewrites it. The better of the two AI
+      surfaces and about a tenth the cost.</p>
+    </li>
+  <li>
+    <a href="chat-edits-the-doc.html">chat-edits-the-doc</a> <span class="tag tag-done">done</span>
+    <p>A panel you can ask for additions in. The only surface that can add something that doesn't exist
+      yet — which is most of what this document still needs.</p>
+    </li>
+  <li>
+    <a href="presence-and-history.html">presence-and-history</a> <span class="tag tag-open">open</span>
+    <p>Presence, attribution and undo shipped with the core. A readable history and per-person undo did
+      not.</p>
+  </li>
+  <li>
+    <a href="domain-wiring.html">domain-wiring</a> <span class="tag tag-done">done</span>
+    <p>Getting <code>iceland.rosettawang.org</code> to serve this. Live Aug 5, 2026; nameservers propagated
+      in about 4.5 minutes. Note the trap recorded there: declaring a route silently disables
+      <code>workers.dev</code>.</p>
+  </li>
+</ul>
+
+<h2 id="how">How this works</h2>
+
+<details class="fold">
+  <summary>Conventions<span class="hint">borrowed wholesale from whrfund-website</span></summary>
+  <div class="body">
+    <p>
+      Same format as <code>whrfund-website/specs/</code>: HTML, read in a browser, sharing one
+      <code>spec.css</code>. Each spec declares <code>&lt;meta name="spec-status"&gt;</code> of
+      <code>open</code>, <code>blocked</code>, <code>done</code> or <code>canonical</code>, plus
+      <code>spec-priority</code> (lower sorts sooner) with a one-line <code>spec-priority-why</code>,
+      <code>spec-touches</code>, and one <code>spec-decision</code> per choice that is Rosetta's.
+    </p>
+    <p>
+      <strong>Two things from that repo are deliberately not here.</strong> There is no
+      <code>specs:prune</code> / <code>specs:plan</code> script, so the order above and the lists are
+      hand-derived and dated rather than generated — if those scripts get ported, they write between the
+      <code>GENERATED:EXECUTION-ORDER</code> markers, which are already in place. And there is no
+      <code>RUN-LOG.html</code>, because this was one sitting rather than a run.
+    </p>
+    <p>
+      The writing standard from that repo's <code>CLAUDE.md</code> applies to this file: never state
+      machine-checkable state from memory, date every status claim, separate verified from assumed.
+      Every count and status above was derived by a command on Aug 5, 2026.
+    </p>
+  </div>
+</details>
+
+<details class="fold">
+  <summary>The project<span class="hint">layout and commands</span></summary>
+  <div class="body">
+    <pre><code>iceland/
+  iceland-eclipse-2026.html    the original — now a historical artifact
+  packing/packing-list.html    ditto
+  scripts/build-shell.mjs      original → live shell + seed blocks
+  seed/{iceland,packing}.json  generated; bundled into the Worker
+  src/index.ts                 gate, routing, two documents
+  src/room.ts                  DocRoom — blocks, sockets, history, AI endpoints
+  src/claude.ts                the editing contract
+  src/sanitize.ts              HTMLRewriter allowlist
+  src/auth.ts                  passcode + signed cookie
+  public/                      shells, doc.css, app.js, gate.html
+  specs/                       this</code></pre>
+    <pre><code>npm run build:shell   # regenerate shells + seeds from the originals
+npm run dev           # local, reads .dev.vars
+npm run deploy
+npx wrangler tail     # live logs</code></pre>
+    <div class="callout warn">
+      <h4>The originals are no longer the source of truth</h4>
+      <p>
+        After the first seed, <code>iceland-eclipse-2026.html</code> and
+        <code>packing/packing-list.html</code> are historical. Editing them changes nothing.
+        <code>build:shell</code> regenerates the seed files, but the Durable Objects only import a seed
+        into an <em>empty</em> document — so a rebuild cannot overwrite eleven days of real planning, and
+        equally cannot be used to push a change into a live document.
+      </p>
+    </div>
+  </div>
+</details>
+
+</div>
+</body>
+</html>

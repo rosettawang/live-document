@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="spec-status" content="done" />
+<meta name="spec-priority" content="20" />
+<meta name="spec-priority-why" content="The only one of the three editing surfaces that works with no API key and no Anthropic balance. If the key never gets set, direct editing alone still makes this a useful shared trip document — so it ships before either AI path." />
+<meta name="spec-needs" content="live-doc-core access-and-identity" />
+<meta name="spec-touches" content="worker/public/app.js worker/public/doc.css worker/src/blocks.ts" />
+<meta name="spec-decision" content="Rich text or plain? Recommended CONSTRAINED RICH TEXT: bold, italic, links and lists survive; everything else is stripped on paste and on save. The document's whole character is its tables, pills and cards, and a plain-textarea editor would flatten it on the first edit. A full toolbar is a week of work nobody asked for." />
+<title>Spec — Editing it like a document</title>
+<link rel="stylesheet" href="spec.css" />
+</head>
+<body>
+
+<div class="internal">Internal planning document — <b>not part of the site</b> · never serve <code>specs/</code></div>
+<div class="countdown">Departure <b>Sat 8 Aug 2026</b></div>
+
+<div class="wrap">
+
+<p><a href="index.html">← Specs index</a></p>
+
+<h1>Editing it like a document</h1>
+<p class="meta">Status: done <span class="tag tag-done">done</span> · created Aug 5, 2026 · shipped Aug 5, 2026 · priority 20</p>
+
+<p class="lede">
+  <strong>Rosetta, Aug 5, 2026:</strong> <em>"allow for direct editing like changing text or deleting as if
+  its a live document."</em> Click a line, change it, it is changed for everyone. No edit mode, no save
+  button.
+</p>
+
+<div class="callout">
+  <h4>Why this one ships before the AI features, even though the AI features are the interesting part</h4>
+  <p>
+    It is the only editing surface with <strong>no dependency on an API key, a balance, or a model being
+    up</strong>. If the Anthropic key never gets pasted, a document you can click into and correct is still
+    the thing that replaces the group chat. The AI paths are an accelerant on top of a document that already
+    works, and building them first would produce a document that only works when it is being paid for.
+  </p>
+</div>
+
+<h2 id="interaction">The interaction</h2>
+
+<div class="two">
+  <div>
+    <p class="cap">Resting · indistinguishable from the document today</p>
+    <div class="stage">
+      <div><strong>Still open</strong></div>
+      <div class="bar m"></div><div class="bar s"></div>
+      <div class="bar m"></div>
+    </div>
+  </div>
+  <div>
+    <p class="cap">Hover · one hairline and a margin handle. Nothing moves.</p>
+    <div class="stage">
+      <div class="hl">
+        <div><strong>Still open</strong></div>
+        <div class="bar m"></div><div class="bar s"></div>
+      </div>
+      <div class="ghost" style="margin-top:.6rem">⋮⋮ &nbsp; 💬 &nbsp; ✕</div>
+    </div>
+  </div>
+</div>
+
+<ul>
+  <li><strong>Hover</strong> a block: a 1px left rule appears and a handle strip fades in at the margin —
+    drag (<code>⋮⋮</code>), comment (<code>💬</code>, see
+    <a href="hover-comment-to-edit.html">hover-comment-to-edit</a>), delete (<code>✕</code>).</li>
+  <li><strong>Click</strong> text: that block becomes <code>contenteditable</code> in place. The caret lands
+    where the click landed. Nothing reflows — the editing state must not shift the page by a pixel, or every
+    edit begins with the reader losing their place.</li>
+  <li><strong>Blur or <kbd>Esc</kbd></strong>: save. There is no save button, and there is no autosave
+    timer either — see below.</li>
+  <li><strong><kbd>⌘B</kbd> / <kbd>⌘I</kbd> / <kbd>⌘K</kbd></strong>: bold, italic, link. That is the
+    entire toolbar.</li>
+  <li><strong><kbd>Enter</kbd></strong> at the end of a block: create a new empty block after it, already
+    focused. This is how anything gets added.</li>
+  <li><strong>Delete</strong>: <code>✕</code> removes the block with a 6-second undo toast. No confirmation
+    dialog — a dialog on every delete trains people to dismiss dialogs, and the undo is strictly better
+    because it also covers the deletes nobody meant to do.</li>
+</ul>
+
+<h3>Saving: on blur, plus a 2-second idle flush</h3>
+<p>
+  Blur-only loses work when a phone browser is backgrounded mid-sentence, which will happen at an airport.
+  Keystroke-level sync would need the CRDT that <a href="live-doc-core.html">live-doc-core</a> deliberately
+  does not have — broadcasting every keystroke as a whole-block replace means the other person's screen
+  redraws under their cursor while you type. So: <strong>flush 2 seconds after typing stops, and on
+  blur, <code>visibilitychange</code> and <code>pagehide</code></strong>. Someone else sees your paragraph
+  land a couple of seconds after you finish it, whole, which is the right granularity for a trip plan.
+</p>
+
+<div class="callout warn">
+  <h4>The block you are editing must not be overwritten under your cursor</h4>
+  <p>
+    While a block is focused locally, incoming <code>block</code> frames for <em>that</em> block are held,
+    not applied. On blur, if a held version exists, the save is submitted with the original
+    <code>baseRev</code>, the server rejects it, and both versions are shown side by side with "keep mine /
+    keep theirs". Every other block keeps updating live behind you.
+  </p>
+  <p>
+    Skipping this produces the single worst bug available in this design: text vanishing mid-sentence
+    because someone across the Atlantic saved the same card. It is a dozen lines and it is not optional.
+  </p>
+</div>
+
+<h2 id="tables">Tables, because half the document is tables</h2>
+<p>
+  Flights, festival timings, activity prices, the eclipse clock. Cells are individually
+  <code>contenteditable</code>; the block that saves is still the whole table. Row-level handles on hover at
+  the row's left edge: <code>+</code> below, <code>✕</code> to remove. <strong>No column operations</strong>
+  — adding a column to a six-column table on a phone is not a real workflow, and the AI paths can do it on
+  request ("add a confirmation-number column") for a fraction of the effort.
+</p>
+
+<h2 id="paste">Paste is where the document gets wrecked</h2>
+<p>
+  Everything arriving in this document comes from somewhere else: a confirmation email, an Airbnb page, a
+  Google Doc. Pasting any of those into <code>contenteditable</code> drops in font tags, inline colours and
+  background styles, and two paragraphs of that makes the page look broken in a way that is tedious to undo
+  by hand.
+</p>
+<p>
+  So: <strong>intercept <code>paste</code>, take <code>text/html</code>, run the same allowlist the server
+  runs</strong> (<a href="live-doc-core.html#build">live-doc-core</a>), insert the result. Shift-paste
+  inserts plain text. The server sanitises again on receipt — the client-side pass is for what the user
+  sees, the server-side pass is what makes it safe.
+</p>
+
+<h2 id="mobile">Mobile, which is where this will mostly be used</h2>
+<p>
+  Three of four people will read this on a phone, and at least one edit will happen on airport wifi.
+</p>
+<ul>
+  <li>Hover does not exist. <strong>Long-press</strong> (400ms) opens the handle strip as a small sheet;
+    <strong>tap</strong> enters editing.</li>
+  <li>Handles are 44px targets even though the resting visual is a thin strip.</li>
+  <li>iOS Safari scrolls the caret under the keyboard on a long block — scroll the focused block into view
+    on <code>focus</code> and on <code>resize</code>, or editing a card near the fold is unusable.</li>
+  <li>No drag-to-reorder on touch. Long-press → "Move up / Move down" in the sheet. Touch drag inside a
+    scrolling document fights the scroll and loses.</li>
+</ul>
+
+<h2 id="verify">Verification</h2>
+<ol>
+  <li>Edit a paragraph on a phone; confirm it lands on the laptop within ~2s of stopping typing, without
+    a reload.</li>
+  <li>Focus a block on device A, edit and save the same block on device B, then blur A. Expect the
+    side-by-side keep-mine/keep-theirs, and <strong>expect A's typing to still be there</strong>.</li>
+  <li>Paste a chunk of a real Airbnb page into a card. Confirm no colours, fonts or backgrounds survive and
+    the layout is unchanged.</li>
+  <li>Add a row to the Flights table on a phone; check it on the laptop.</li>
+  <li>Delete a block, wait for the toast to expire, reload — it stays deleted. Delete another, hit undo,
+    reload — it is back.</li>
+  <li>Background the tab mid-sentence on iOS, reopen: the sentence is saved.</li>
+</ol>
+
+</div>
+</body>
+</html>

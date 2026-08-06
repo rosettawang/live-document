@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="spec-status" content="done" />
+<meta name="spec-priority" content="40" />
+<meta name="spec-priority-why" content="The other half of Rosetta's 'make a chat that adds text input which changes the contents'. Sorts after the hover comment because it costs ~10x per call and is the weaker interaction for most real edits — but it is the only surface that can add something that does not exist yet." />
+<meta name="spec-needs" content="claude-editor-contract hover-comment-to-edit" />
+<meta name="spec-account" content="yes" />
+<meta name="spec-verified" content="Verified on the live site Aug 5, 2026: asked what was still unbooked; answered accurately from the document, applied 0 ops because it was a question not an instruction, budget decremented 30 to 29, ~8.5s round trip." />
+<meta name="spec-touches" content="worker/public/app.js worker/public/doc.css src/room.ts" />
+<meta name="spec-decision" content="Is the chat log shared between the four of them, or per person? Recommended PER PERSON, IN THE BROWSER, not persisted. A shared log is a group chat, and they already have one; what is shared is the document itself, which is the point. Per-person also means nobody has to scroll past someone else's twelve failed attempts to phrase a request." />
+<title>Spec — Asking for a change in words</title>
+<link rel="stylesheet" href="spec.css" />
+</head>
+<body>
+
+<div class="internal">Internal planning document — <b>not part of the site</b> · never serve <code>specs/</code></div>
+<div class="countdown">Departure <b>Sat 8 Aug 2026</b></div>
+
+<div class="wrap">
+
+<p><a href="index.html">← Specs index</a></p>
+
+<h1>Asking for a change in words</h1>
+<p class="meta">Status: done <span class="tag tag-done">done</span> · created Aug 5, 2026 · shipped &amp; verified Aug 5, 2026 · priority 40</p>
+
+<p class="lede">
+  <strong>Rosetta, Aug 5, 2026:</strong> <em>"make a chat that adds text input which changes the
+  contents."</em> A panel on the right. You type what you want; the document changes.
+</p>
+
+<div class="callout">
+  <h4>What this can do that the hover comment can't</h4>
+  <p>
+    The hover comment can only change something that already exists — you have to be pointing at it.
+    <strong>The chat is the only way to add something that isn't there yet</strong>, and that is most of
+    what this document still needs: there is no lodging section, no car booking, no arrival times for Ed
+    and Ben. "Add a Reykjavík lodging section with three options under $400" has nothing to hover over.
+  </p>
+  <p>
+    That is the split worth teaching: <strong>comment to fix, chat to add.</strong> The empty-state
+    examples in the panel are all additions for exactly this reason.
+  </p>
+</div>
+
+<h2 id="panel">The panel</h2>
+
+<ul>
+  <li><strong>Closed by default</strong>, behind a violet "Ask Claude" pill bottom-right. The document is
+    the product; the chat is a tool you reach for.</li>
+  <li><strong>Empty state teaches by example</strong>, with three real requests against this actual trip
+    rather than generic prompts. Someone who reads "Ed lands Aug 9 at 06:30 on FI614 — add him to the
+    flights table" knows immediately what kind of thing to type.</li>
+  <li><strong>Your message, then Claude's reply, then a count.</strong> "3 blocks changed" under the
+    reply — because the reply says what it did and the count says whether it actually did it.</li>
+  <li><strong>Enter sends, Shift-Enter newlines.</strong></li>
+  <li><strong>The remaining daily budget sits in the header</strong> once you've spent one, so running out
+    is something you see coming rather than discover.</li>
+</ul>
+
+<h3>Where the changes appear</h3>
+<p>
+  <strong>Not in the chat.</strong> No diff, no preview, no accept/reject. The edits land in the document
+  behind the panel with a violet flash, and <a href="presence-and-history.html">Undo</a> in the status bar
+  reverses the last one. A confirm step on every AI edit sounds safer and in practice trains people to
+  click "accept" without reading — the undo is honest about how it will actually be used.
+</p>
+
+<div class="callout warn">
+  <h4>Cost: the chat sends the whole document, and that is a real number</h4>
+  <p>
+    Every chat message carries all 46 blocks — roughly 15k input tokens, about <strong>$0.08 a
+    message</strong> at Opus 5 pricing. Against the account's $28.22 credit balance (checked Aug 5, 2026)
+    that is a few hundred messages, which is fine for four people over eleven days and is <em>not</em>
+    fine if the link leaks. Hence the per-person daily cap of 30 in
+    <a href="access-and-identity.html">access-and-identity</a>, which is the actual spend control; this
+    note is the reason it exists.
+  </p>
+  <p>
+    Scoping chat context the way the hover comment scopes it would need a retrieval step — pick the
+    relevant sections, then edit — and that is a second model call and a new failure mode, for a document
+    small enough that the whole thing fits comfortably. Revisit if the document doubles.
+  </p>
+</div>
+
+<h2 id="verify">Verification</h2>
+<ol>
+  <li>"Add a Reykjavík lodging section with three placeholder options" → new blocks appear in a sensible
+    section, in house style, for everyone.</li>
+  <li>Ask a question rather than an instruction → an answer, and nothing in the document moves.</li>
+  <li>A request touching two sections → both change, count says 2 or more.</li>
+  <li>Spend the daily cap → the panel says so plainly and direct editing still works.</li>
+  <li>Send with no key set → a message saying the key is missing, not a silent failure.</li>
+</ol>
+
+</div>
+</body>
+</html>

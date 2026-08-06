@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="spec-status" content="done" />
+<meta name="spec-priority" content="35" />
+<meta name="spec-priority-why" content="Rosetta asked for it mid-build: 'packing list might be at iceland.rosettawang.org/packing'. Cheap while the routing was still one line; expensive after four people have bookmarked things." />
+<meta name="spec-needs" content="live-doc-core" />
+<meta name="spec-touches" content="src/index.ts src/room.ts scripts/build-shell.mjs worker/public/app.js" />
+<meta name="spec-decision" content="One Durable Object holding both documents, or one each? Recommended ONE EACH. Two DOs cost nothing extra, and they mean the packing list and the trip plan can be edited simultaneously without serialising behind each other, a bad AI edit to one can never reach the other, and each seeds itself independently. The only thing lost is a cross-document AI edit ('move the tent stuff to the packing list'), which nobody asked for." />
+<title>Spec — Two documents, one site</title>
+<link rel="stylesheet" href="spec.css" />
+</head>
+<body>
+
+<div class="internal">Internal planning document — <b>not part of the site</b> · never serve <code>specs/</code></div>
+<div class="countdown">Departure <b>Sat 8 Aug 2026</b></div>
+
+<div class="wrap">
+
+<p><a href="index.html">← Specs index</a></p>
+
+<h1>Two documents, one site</h1>
+<p class="meta">Status: done <span class="tag tag-done">done</span> · created Aug 5, 2026 · shipped Aug 5, 2026 · priority 35</p>
+
+<p class="lede">
+  <strong>Rosetta, Aug 5, 2026:</strong> <em>"packing list might be at
+  iceland.rosettawang.org/packing."</em> It is.
+</p>
+
+<table>
+<thead><tr><th>Path</th><th>Document</th><th>Source</th><th>Blocks</th></tr></thead>
+<tbody>
+<tr><td><code>/</code></td><td>Trip plan</td><td><code>iceland-eclipse-2026.html</code></td><td>46</td></tr>
+<tr><td><code>/packing</code></td><td>Packing list &amp; tent anchoring</td><td><code>packing/packing-list.html</code></td><td>48</td></tr>
+</tbody>
+</table>
+<p class="dim">Counts derived by <code>npm run build:shell</code> on Aug 5, 2026, not recalled.</p>
+
+<div class="callout">
+  <h4>The packing list turned out to be the better argument for this design than the trip plan</h4>
+  <p>
+    It is 37 blocks of tent-anchoring arithmetic and 11 of packing items — a document whose entire content
+    is <em>numbers someone will want to argue with</em> ("is 69 kgf per anchor right if we only bring
+    eight pegs?"). That is exactly the hover-comment interaction, and it would have been a shame to leave
+    it as a static file next to a live one.
+  </p>
+</div>
+
+<h2 id="how">How it works — three small pieces</h2>
+
+<ol>
+  <li><strong>The build emits one shell and one seed per document.</strong>
+    <code>scripts/build-shell.mjs</code> loops a <code>DOCS</code> array; adding a third page is four
+    lines and no new code.</li>
+  <li><strong>Each page declares which document it is</strong> via
+    <code>&lt;meta name="x-doc"&gt;</code>, and the client appends <code>?doc=</code> to its socket and
+    API calls. The Worker maps that to <code>DOC.idFromName("doc:&lt;slug&gt;")</code> — a separate
+    Durable Object, with its own SQLite, its own history and its own seed.</li>
+  <li><strong>The sticky section bar carries the cross-link</strong> — "Packing list →" on one, "← Trip
+    plan" on the other — placed before the collapse-all button so it reads as navigation.</li>
+</ol>
+
+<div class="callout warn">
+  <h4>An unknown <code>?doc=</code> falls back to the trip plan rather than creating a new document</h4>
+  <p>
+    <code>DOC.idFromName()</code> will happily mint a Durable Object for any string, so a typo'd or
+    hand-edited query parameter would otherwise create an empty document that looks like the real one
+    having lost everything. The Worker allowlists the two known slugs; anything else is the trip plan.
+  </p>
+</div>
+
+<h2 id="verify">Verification — done Aug 5, 2026</h2>
+<ol>
+  <li><code>/packing</code> serves the packing shell, seeds 48 blocks, and reports
+    <code>x-doc = packing</code>. ✅</li>
+  <li>An edit on <code>/</code> does not appear on <code>/packing</code>. ✅ (separate DOs)</li>
+  <li>Both pages carry the cross-link and both resolve. ✅</li>
+  <li>The gate covers both — <code>/packing</code> with no cookie serves the gate. ✅</li>
+  <li>Console clean on both. ✅</li>
+</ol>
+
+<details class="fold">
+  <summary>If a third document shows up<span class="hint">the four lines</span></summary>
+  <div class="body">
+    <p>Add to <code>DOCS</code> in <code>scripts/build-shell.mjs</code> (slug, source, output, sibling
+    link), add the same slug to <code>DOCS</code> in <code>src/index.ts</code> and to
+    <code>SEEDS</code> in <code>src/room.ts</code>, rebuild, deploy. The sibling links become a real nav
+    at three pages rather than a single "→" — that is the point at which the bar should list all of them
+    instead of pointing at the other one.</p>
+  </div>
+</details>
+
+</div>
+</body>
+</html>

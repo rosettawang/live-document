@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="spec-status" content="open" />
+<meta name="spec-priority" content="50" />
+<meta name="spec-priority-why" content="Undo and attribution shipped with the core because an AI that rewrites whole blocks is unusable without them. What is left — a readable history, and undoing YOUR last change rather than THE last change — is real but not trip-critical." />
+<meta name="spec-needs" content="live-doc-core access-and-identity" />
+<meta name="spec-touches" content="src/room.ts worker/public/app.js worker/public/doc.css" />
+<meta name="spec-decision" content="Should Undo be global or per person? Recommended KEEP GLOBAL FOR NOW, revisit if it bites. Global undo means Ben can undo Kenya's edit by accident, which sounds bad and mostly isn't at four people — but 'undo my last change' needs a per-person history cursor, and the honest reason it isn't built is that it wasn't needed before departure. Say so rather than pretending the global one was the design." />
+<title>Spec — Who's here, and what just changed</title>
+<link rel="stylesheet" href="spec.css" />
+</head>
+<body>
+
+<div class="internal">Internal planning document — <b>not part of the site</b> · never serve <code>specs/</code></div>
+<div class="countdown">Departure <b>Sat 8 Aug 2026</b></div>
+
+<div class="wrap">
+
+<p><a href="index.html">← Specs index</a></p>
+
+<h1>Who's here, and what just changed</h1>
+<p class="meta">Status: open <span class="tag tag-open">open</span> · created Aug 5, 2026 · priority 50</p>
+
+<p class="lede">
+  A document that rewrites itself needs to answer two questions at a glance: <strong>who else is looking
+  at this right now</strong>, and <strong>what changed since I last did</strong>.
+</p>
+
+<h2 id="shipped">Shipped with the core, because the core is unsafe without it</h2>
+
+<table>
+<thead><tr><th>Thing</th><th>Where it is</th><th>Why it couldn't wait</th></tr></thead>
+<tbody>
+<tr>
+  <td><strong>Presence</strong> — "with Kenya, Ed"</td>
+  <td>Status bar, bottom left</td>
+  <td>Knowing someone else is in the document changes how you edit. It is also the cheapest possible
+    version: names of open sockets, no cursors, no avatars.</td>
+</tr>
+<tr>
+  <td><strong>Attribution</strong> — a name in the block's top-right on hover, violet for Claude</td>
+  <td>Every block</td>
+  <td>When a rewrite is wrong, the first thing anyone needs to know is whether a person wrote that
+    sentence or a model did, before deciding whether to trust the price in it.</td>
+</tr>
+<tr>
+  <td><strong>Undo</strong> — one button, reverses the last change by anyone</td>
+  <td>Status bar; also the toast after a delete</td>
+  <td>This is what makes it safe to let an AI rewrite a block with no confirm step. Without it, every AI
+    edit needs an accept/reject gate, which trains people to click accept.</td>
+</tr>
+<tr>
+  <td><strong>Connection dot</strong> — green live, coral reconnecting</td>
+  <td>Status bar</td>
+  <td>Typing into a document that is quietly disconnected is the worst-feeling bug available here.</td>
+</tr>
+</tbody>
+</table>
+
+<p class="dim">
+  Verified Aug 5, 2026: two browser tabs, edit in one, appears in the other in about a second; Undo
+  restored the original text in both.
+</p>
+
+<h2 id="left">What's left</h2>
+
+<h3>1. A history anyone can read</h3>
+<p>
+  Every mutation already writes a <code>history</code> row — block, previous html, kind, timestamp, who —
+  so the data is there and nothing surfaces it. What's missing is a panel: <em>"Kenya changed the Flights
+  table · 14:20 · show what changed"</em>, newest first, with a revert on each entry.
+</p>
+<p>
+  The reason this matters more than it sounds: <strong>people will come back to this document after not
+  looking at it for a day</strong>, and "what did everyone do while I was asleep" has no answer right now
+  beyond reading the whole page. On a trip with a five-hour time difference between Reykjavík and the US
+  east coast, that is most mornings.
+</p>
+
+<h3>2. Undo mine, not undo theirs</h3>
+<p>
+  Undo currently pops the global history stack. At four people that is usually right and occasionally
+  startling — Ben presses Undo meaning "the thing I just did" and reverses Kenya's edit from ten seconds
+  earlier. The fix is a per-person cursor: walk back to the most recent entry where <code>by = you</code>.
+  Cheap; just not done.
+</p>
+
+<h3>3. Redo</h3>
+<p>
+  Undo deletes the history row it consumed, so there is nothing to redo from. A <code>kind='undo'</code>
+  entry recording what was reversed would give redo for free — and would also stop repeated Undo presses
+  from silently walking back further than anyone intended, which is the more likely real complaint.
+</p>
+
+<details class="fold">
+  <summary>Rejected: live cursors and per-character presence<span class="hint">the thing collaborative editors have</span></summary>
+  <div class="body">
+    <p>
+      Coloured carets showing exactly where each person is typing. It is the demo everyone recognises, and
+      it needs per-keystroke position broadcasting — which the block model deliberately does not have
+      (<a href="live-doc-core.html">live-doc-core</a>) and which would put a redraw under someone's cursor
+      every time a teammate moves.
+    </p>
+    <p>
+      What it actually buys at four people editing a nine-section trip plan, mostly at different hours in
+      different countries, is nearly nothing: the collision it prevents — two people in the same paragraph
+      in the same second — is already handled by the keep-mine/keep-theirs prompt, and handled honestly.
+    </p>
+  </div>
+</details>
+
+<h2 id="verify">Verification for what's left</h2>
+<ol>
+  <li>Make three changes as three different names; open the history panel and confirm all three, newest
+    first, with the right names.</li>
+  <li>Revert the middle entry and confirm the other two survive.</li>
+  <li>Press Undo as Ben after Kenya edited more recently; confirm Ben's change reverses, not Kenya's.</li>
+</ol>
+
+</div>
+</body>
+</html>

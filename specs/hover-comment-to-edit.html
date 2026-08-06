@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="spec-status" content="done" />
+<meta name="spec-priority" content="30" />
+<meta name="spec-priority-why" content="The feature Rosetta described most concretely — 'hover to add comment anywhere which then runs through claude and changes the content'. Built, deployed and exercised on the live site Aug 5, 2026." />
+<meta name="spec-needs" content="claude-editor-contract direct-editing" />
+<meta name="spec-account" content="yes" />
+<meta name="spec-verified" content="Verified on the live site Aug 5, 2026: a comment on the open-questions block added one bullet, left the other six untouched, attributed the block to claude, and declined to invent a rental-car price — flagging the gap in its reply instead. Undo restored it." />
+<meta name="spec-touches" content="worker/public/app.js worker/public/doc.css src/room.ts" />
+<meta name="spec-decision" content="Does a comment leave a visible thread, or just change the block? Recommended JUST CHANGE THE BLOCK, and log the exchange into the chat panel. A comment thread is a second inbox to keep on top of during a trip; the change plus a line in the log is the whole value with none of the upkeep. Revisit if people start wanting to disagree with an edit rather than just make one." />
+<title>Spec — Hover anywhere, say what's wrong</title>
+<link rel="stylesheet" href="spec.css" />
+</head>
+<body>
+
+<div class="internal">Internal planning document — <b>not part of the site</b> · never serve <code>specs/</code></div>
+<div class="countdown">Departure <b>Sat 8 Aug 2026</b></div>
+
+<div class="wrap">
+
+<p><a href="index.html">← Specs index</a></p>
+
+<h1>Hover anywhere, say what's wrong</h1>
+<p class="meta">Status: done <span class="tag tag-done">done</span> · created Aug 5, 2026 · shipped &amp; verified Aug 5, 2026 · priority 30</p>
+
+<p class="lede">
+  <strong>Rosetta, Aug 5, 2026:</strong> <em>"allow for hover to add comment anywhere which then runs
+  through claude and changes the content."</em> Point at the thing that's wrong, say why in your own
+  words, and it gets rewritten.
+</p>
+
+<div class="callout">
+  <h4>Why this is the better of the two AI surfaces, and should be the one people find first</h4>
+  <p>
+    <a href="chat-edits-the-doc.html">The chat box</a> makes you describe <em>where</em> before you can
+    say <em>what</em>: "in the activity research section, the bit about the Blue Lagoon…". The hover
+    comment carries the location for free — you are already pointing at it — so the whole message can be
+    the actual thought: <em>"too expensive"</em>. Three words that would take a sentence and a half in
+    chat.
+  </p>
+  <p>
+    That is also why it is cheaper: the request only has to carry the commented block's section rather
+    than the whole document.
+  </p>
+</div>
+
+<h2 id="interaction">The interaction</h2>
+
+<div class="two">
+  <div>
+    <p class="cap">Hover · the 💬 sits in the handle strip with the other affordances</p>
+    <div class="stage">
+      <div class="hl">
+        <div><strong>Blue Lagoon</strong></div>
+        <div class="bar m"></div><div class="bar s"></div>
+      </div>
+      <div class="ghost" style="margin-top:.6rem;text-align:right">💬 &nbsp; ＋ &nbsp; ↑ ↓ &nbsp; ✕</div>
+    </div>
+  </div>
+  <div>
+    <p class="cap">Click 💬 · a box, one field, no ceremony</p>
+    <div class="stage">
+      <div class="ghost" style="font-size:.72rem;letter-spacing:.1em;text-transform:uppercase">Comment on this block <span style="color:#9b8cf0">activity-research-04</span></div>
+      <div style="border:1px solid #28314a;border-radius:6px;padding:.5rem .6rem;margin:.5rem 0;color:#9aa4bd">too expensive — find something cheaper</div>
+      <div style="text-align:right"><span class="ghost">Cancel</span> &nbsp; <span style="background:#9b8cf0;color:#12101f;padding:.2rem .6rem;border-radius:5px;font-weight:650">Send to Claude</span></div>
+    </div>
+  </div>
+</div>
+
+<ol>
+  <li>Hover a block (long-press on touch) → the handle strip appears at its top-right.</li>
+  <li>Click <strong>💬</strong> → a popover anchored under the block, one textarea, placeholder examples
+    that teach the range: <em>"too expensive — find something cheaper"</em>, <em>"add Ed and Ben's flights
+    once known"</em>, <em>"turn this into a table"</em>.</li>
+  <li>Send → the popover closes, <strong>the block dims and says "Claude is rewriting this…"</strong>,
+    and the chat panel opens with your comment already logged.</li>
+  <li>The rewritten block lands for everyone with a violet flash and <code>Claude</code> in its margin.</li>
+</ol>
+
+<h3>The block is the progress indicator</h3>
+<p>
+  No spinner in a corner, no toast. The block you commented on is the thing that dims, and the label sits
+  on it. That matters because the round trip is a few seconds and the page is long: a spinner somewhere
+  else means scrolling to find out whether anything happened. It also means <strong>two people can have
+  two comments in flight on two blocks</strong> and each sees their own.
+</p>
+
+<div class="callout warn">
+  <h4>The one failure this must not have: a comment that silently does nothing</h4>
+  <p>
+    Three ways it can end with no visible change — the model decided it was a question, the key is
+    missing, the daily cap is spent. All three <strong>write a line into the chat log</strong> rather than
+    just clearing the busy state. A dimmed block that un-dims with nothing to show for it is the
+    interaction people stop trusting after one occurrence.
+  </p>
+</div>
+
+<h2 id="cost">Cost, because this is the button people will press most</h2>
+<p>
+  The comment path sends the outline plus <strong>only the commented block's section</strong> — roughly a
+  tenth of what the chat path sends. Against the account's $28.22 credit balance (checked Aug 5, 2026)
+  that is the difference between a few hundred comments and a few dozen. Metering is per person per day
+  and shared with chat — see <a href="access-and-identity.html">access-and-identity</a>.
+</p>
+
+<h2 id="verify">Verification</h2>
+<ol>
+  <li>Comment "make this shorter" on a card; confirm only that card changes and the classes survive.</li>
+  <li>Comment on a block in one browser and confirm it lands in another without a reload.</li>
+  <li>Comment something that needs a fact it doesn't have; confirm the gap is visible and flagged rather
+    than invented.</li>
+  <li>Long-press a block on a phone; confirm the strip appears and the popover fits the screen.</li>
+  <li>With no key set: confirm the block un-dims <em>and</em> the chat log says why.</li>
+</ol>
+
+</div>
+</body>
+</html>

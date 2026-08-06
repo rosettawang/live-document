@@ -1,0 +1,36 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "iceland-doc",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "account_id": "7609ab5b3375ab5cff0b3b3e0dad60d9",
+
+  // Static shell (hero, CSS, app.js). run_worker_first so the passcode gate
+  // runs before anything is served — an assets-first config would hand out
+  // the document to anyone who guesses the subdomain.
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+
+  "durable_objects": {
+    "bindings": [{ "name": "DOC", "class_name": "DocRoom" }]
+  },
+
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DocRoom"] }],
+
+  "observability": { "enabled": true },
+
+  // Nameservers were pointed at Cloudflare on Aug 5, 2026. Cloudflare creates
+  // the proxied DNS record and issues the certificate itself — there is nothing
+  // to add by hand at the registrar. Expect a few minutes of 526 / cert warning
+  // immediately after the zone activates; that is issuance, not misconfiguration.
+  "routes": [{ "pattern": "iceland.rosettawang.org", "custom_domain": true }],
+
+  // Declaring a route turns workers.dev OFF by default. Keep it on: it is the
+  // fallback link while DNS propagates, and — more to the point — the link that
+  // still works if anything ever goes wrong with the domain mid-trip.
+  "workers_dev": true
+}

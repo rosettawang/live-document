@@ -1,0 +1,155 @@
+/* ============================================================
+   Iceland 2026 internal spec sheets — shared style
+   INTERNAL ONLY. specs/ is never served; see specs/index.html.
+   Same class vocabulary as whrfund-website/specs/spec.css so the
+   two read as one system. Palette mirrors the trip document
+   (iceland-eclipse-2026.html) inverted to paper, because a spec
+   is read in daylight and the doc is read at 2am in a tent.
+   ============================================================ */
+
+:root{
+  --bg:#F4F6FB; --card:#FFF; --ink:#1B2233; --border:#DCE1EE;
+  --navy-900:#141926; --navy-600:#4A5470; --navy-200:#9AA4BD;
+  --blue:#3A5FA8; --sky:#5FC9C0;
+  --coral:#C0472F; --coral-text:#A33A24; --gold:#9C7418; --violet:#5B4CC4;
+  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:400 17px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased}
+.wrap{max-width:900px;margin:0 auto;padding:2.5rem 1.25rem 5rem}
+h1,h2,h3{line-height:1.2;letter-spacing:-.015em}
+h1{font-size:2.1rem;font-weight:700;margin:0 0 .35rem;color:var(--navy-900)}
+h2{font-size:1.5rem;font-weight:700;margin:2.75rem 0 .75rem;color:var(--navy-900);
+  border-bottom:1px solid var(--border);padding-bottom:.4rem}
+h3{font-size:1.15rem;font-weight:650;margin:1.75rem 0 .5rem}
+p,li{max-width:68ch}
+a{color:var(--blue)}
+code{font-family:var(--mono);font-size:.88em;background:#E7EBF6;
+  padding:.1em .35em;border-radius:3px}
+pre{background:var(--navy-900);color:#E9ECF4;padding:1rem 1.1rem;border-radius:6px;
+  overflow-x:auto;font-family:var(--mono);font-size:.8rem;line-height:1.55}
+pre code{background:none;padding:0;color:inherit;font-size:inherit}
+table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.93rem}
+th,td{border:1px solid var(--border);padding:.5rem .65rem;text-align:left;vertical-align:top}
+th{background:#E7EBF6;font-weight:650}
+.lede{font-size:1.05rem;color:var(--navy-600)}
+.meta{font-family:var(--mono);font-size:.78rem;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--navy-600);margin:0 0 1.5rem}
+.callout{border-left:4px solid var(--sky);background:#fff;padding:1rem 1.25rem;
+  border-radius:0 6px 6px 0;margin:1.25rem 0}
+.callout.warn{border-left-color:var(--coral)}
+.callout.ask{border-left-color:var(--gold)}
+.callout.clock{border-left-color:var(--violet)}
+.callout h4{margin:0 0 .4rem;font-size:.8rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:.07em;color:var(--navy-600)}
+.callout.warn h4{color:var(--coral-text)}
+.callout.clock h4{color:var(--violet)}
+.callout p:last-child{margin-bottom:0}
+blockquote{margin:1rem 0;padding:.75rem 1.25rem;border-left:3px solid var(--border);
+  color:var(--navy-600)}
+.tag{display:inline-block;font-size:.72rem;font-weight:700;text-transform:uppercase;
+  letter-spacing:.06em;padding:.15em .55em;border-radius:3px;vertical-align:middle}
+.tag-open{background:#BFE6E2;color:#17403C}
+.tag-blocked{background:#F0D9A8;color:#4A3405}
+.tag-done{background:var(--border);color:var(--navy-600)}
+.tag-canonical{background:var(--blue);color:#EAF1FF}
+
+/* internal-only banner — every spec carries it */
+.internal{background:var(--navy-900);color:var(--bg);font-family:var(--mono);
+  font-size:.72rem;text-transform:uppercase;letter-spacing:.09em;
+  padding:.55rem 1.25rem;text-align:center}
+.internal b{color:var(--sky)}
+
+/* the departure clock — this project has a hard deadline, so it gets a banner */
+.countdown{background:#2A1F3D;color:#EFEBFF;font-family:var(--mono);
+  font-size:.72rem;text-transform:uppercase;letter-spacing:.09em;
+  padding:.55rem 1.25rem;text-align:center}
+.countdown b{color:#E8B95C}
+
+/* draft copy block (proposed in-product wording) */
+.copy{background:var(--card);border:1px solid var(--border);border-radius:8px;
+  padding:1.5rem 1.75rem;margin:1.25rem 0}
+.copy h3:first-child{margin-top:0}
+
+/* completed-work log */
+.spec-done-list li{margin-bottom:.6rem}
+.spec-done-list .when{font-family:var(--mono);font-size:.72rem;text-transform:uppercase;
+  letter-spacing:.06em;color:var(--navy-600);background:#E7EBF6;
+  padding:.15em .5em;border-radius:3px;white-space:nowrap}
+
+/* index listing */
+.spec-list{list-style:none;padding:0;margin:1rem 0}
+.spec-list li{background:var(--card);border:1px solid var(--border);border-radius:6px;
+  padding:1rem 1.15rem;margin-bottom:.75rem;max-width:none}
+.spec-list a{font-weight:650;text-decoration:none;font-size:1.05rem}
+.spec-list a:hover{text-decoration:underline}
+.spec-list p{margin:.35rem 0 0;font-size:.93rem;color:var(--navy-600)}
+.spec-list .blocker{
+  margin:.55rem 0 0;padding:.6rem .8rem;background:#FBEAE5;
+  border-left:3px solid var(--coral);border-radius:0 4px 4px 0;
+  font-size:.9rem;color:var(--ink);
+}
+.spec-list .blocker strong{color:var(--coral-text)}
+
+/* Decisions waiting */
+.spec-decision-list{list-style:none;padding:0;margin:1rem 0}
+.spec-decision-list > li{background:var(--card);border:1px solid var(--border);
+  border-left:4px solid var(--gold);border-radius:0 6px 6px 0;
+  padding:1rem 1.15rem;margin-bottom:.75rem;max-width:none}
+.spec-decision-list > li > a{font-weight:650;text-decoration:none;font-size:1.05rem}
+.spec-decision-list > li > a:hover{text-decoration:underline}
+.spec-decision-list ul{margin:.5rem 0 0;padding-left:1.15rem}
+.spec-decision-list ul li{font-size:.93rem;margin-bottom:.5rem;max-width:68ch}
+.spec-decision-list ul li:last-child{margin-bottom:0}
+
+/* Collapsible reference sections — conventions fold, actions stay open */
+details.fold{border:1px solid var(--border);border-radius:6px;
+  background:var(--card);margin:1.5rem 0}
+details.fold > summary{cursor:pointer;list-style:none;display:flex;align-items:baseline;
+  gap:.55rem;padding:.75rem 1.1rem;font-size:1.15rem;font-weight:650;color:var(--navy-900)}
+details.fold > summary::-webkit-details-marker{display:none}
+details.fold > summary::before{content:"▸";font-family:var(--mono);font-size:.85em;color:var(--navy-600)}
+details.fold[open] > summary::before{content:"▾"}
+details.fold > summary:hover{color:var(--blue)}
+details.fold > summary:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+details.fold > summary .hint{margin-left:auto;font-size:.78rem;font-weight:400;
+  color:var(--navy-600);text-align:right}
+details.fold > .body{padding:0 1.1rem 1.1rem}
+details.fold > .body > :first-child{margin-top:0}
+details.fold h3{font-size:1.02rem;margin-top:1.25rem}
+details.fold h2{font-size:1.02rem;border-bottom:0;margin:1.25rem 0 .5rem;padding-bottom:0}
+
+/* Sticky section jump-nav at the top of the index */
+.index-nav{position:sticky;top:0;z-index:30;display:flex;flex-wrap:wrap;gap:.5rem;
+  align-items:center;margin:1.5rem -1.25rem 2rem;padding:.7rem 1.25rem;
+  background:var(--bg);border-bottom:1px solid var(--border)}
+.index-nav a{font-size:.85rem;text-decoration:none;color:var(--blue);background:var(--card);
+  border:1px solid var(--border);border-radius:999px;padding:.3rem .9rem}
+.index-nav a:hover{border-color:var(--blue)}
+.index-nav a:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.index-nav a.to-top{margin-left:auto;color:var(--navy-600)}
+@media (max-width:620px){
+  .index-nav{gap:.35rem;padding:.55rem 1.25rem}
+  .index-nav a{font-size:.78rem;padding:.25rem .7rem}
+  .index-nav a.to-top{margin-left:0}
+}
+h1[id],h2[id],h3[id],[id]:not(nav){scroll-margin-top:5.5rem}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+@media print{.index-nav{position:static;margin:1.5rem 0 2rem}}
+
+/* Two-up mockup stages, used by the interaction specs */
+.two{display:grid;grid-template-columns:1fr 1fr;gap:1.1rem}
+@media (max-width:780px){.two{grid-template-columns:1fr}}
+.cap{font-family:var(--mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--navy-600);margin:.1rem 0 .5rem;max-width:none}
+.stage{position:relative;background:#0C0F16;border:1px solid #28314A;border-radius:10px;
+  padding:1rem 1.1rem;margin:.5rem 0;color:#E9ECF4;font-size:.85rem;line-height:1.55;
+  overflow:hidden}
+.stage .bar{height:.5rem;background:#1B2233;border-radius:3px;margin:.5rem 0;max-width:none}
+.stage .bar.s{width:52%}.stage .bar.m{width:80%}
+.stage .hl{outline:2px solid #5FC9C0;outline-offset:3px;border-radius:4px}
+.stage .ghost{color:#6F7A95}
+
+@media (max-width:620px){table{display:block;overflow-x:auto;max-width:100%}}

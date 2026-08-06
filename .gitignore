@@ -1,0 +1,21 @@
+node_modules/
+.wrangler/
+.DS_Store
+
+# Secrets. Production uses `wrangler secret put`, which never writes to disk.
+.dev.vars
+
+# ── Trip content ─────────────────────────────────────────────────────────────
+# The repo is public; this content is not mine alone to publish. The source
+# documents and the seed files they generate contain four people's flight
+# numbers, arrival times and where they are sleeping. Three of those people did
+# not agree to put that on the internet.
+#
+# Nothing here is needed to run the project — `npm run build:shell` regenerates
+# both the shells and the seed JSON from whatever source documents you point it
+# at. See the README.
+iceland-eclipse-2026.html
+packing/
+seed/
+public/index.html
+public/packing.html

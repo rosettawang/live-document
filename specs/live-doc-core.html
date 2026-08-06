@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="spec-status" content="done" />
+<meta name="spec-priority" content="10" />
+<meta name="spec-priority-why" content="Everything else in this project is a feature of this one. Nothing — direct editing, hover comments, chat — exists until the document is a shared server-held thing rather than a file on Rosetta's disk. Departure is Aug 8, 2026, three days out." />
+<meta name="spec-touches" content="worker/src/index.ts worker/src/room.ts worker/src/blocks.ts worker/public/app.js worker/public/doc.css wrangler.toml scripts/seed-doc.mjs" />
+<meta name="spec-decision" content="Block granularity — does a friend edit a whole section, or a single paragraph? Recommended ONE BLOCK PER TOP-LEVEL ELEMENT INSIDE A SECTION BODY: each card, table, list, timeline and paragraph is its own block, and the nine &lt;details class=sec&gt; wrappers are containers, not blocks. Sections are too coarse (two people cannot touch Activity Research at once, and it is 250 lines) and inline runs are too fine (they need real CRDTs, which cannot be built in three days)." />
+<meta name="spec-decision" content="Where does the document live between edits? Recommended DURABLE OBJECT SQLITE STORAGE, one DO instance per document, not D1. The DO is already the thing holding the WebSocket connections and serialising writes; putting the rows anywhere else adds a network hop and a second source of truth for no gain at four users. D1 (whrf-rsvps exists on this account) stays uninvolved." />
+<title>Spec — Turning the trip plan into a live document</title>
+<link rel="stylesheet" href="spec.css" />
+</head>
+<body>
+
+<div class="internal">Internal planning document — <b>not part of the site</b> · never serve <code>specs/</code></div>
+<div class="countdown">Departure <b>Sat 8 Aug 2026</b> · this spec must be live before then</div>
+
+<div class="wrap">
+
+<p><a href="index.html">← Specs index</a></p>
+
+<h1>Turning the trip plan into a live document</h1>
+<p class="meta">Status: done <span class="tag tag-done">done</span> · created Aug 5, 2026 · shipped &amp; verified Aug 5, 2026 · priority 10</p>
+
+<p class="lede">
+  <strong>Rosetta, Aug 5, 2026:</strong> <em>"a live document i will share to friends and we plan things
+  together."</em> Today it is a 55&nbsp;KB HTML file on one laptop that four people cannot edit and three
+  of them have never seen.
+</p>
+
+<div class="callout clock">
+  <h4>The constraint that decides every trade in this project</h4>
+  <p>
+    <strong>Rosetta flies SFO→EWR→KEF on Saturday 8 August. That is three days from today.</strong>
+    Ed and Ben have not booked flights, nobody has a car, and there is no lodging for Aug&nbsp;9–10 or
+    Aug&nbsp;16–18. The document's job is to collect those four answers from four people <em>this week</em>,
+    largely from phones, some of it from an airport.
+  </p>
+  <p>
+    So the bar is <strong>not</strong> "a good collaborative editor". It is <strong>"four people can open a
+    link on their phones on Thursday and change the same page"</strong>. Anything that cannot be finished,
+    deployed and used by Thursday night is out of scope no matter how much better it would be — and this
+    is written down here so that later specs can be cut against it rather than argued about.
+  </p>
+</div>
+
+<h2 id="what-exists">What exists today, checked rather than remembered</h2>
+
+<p>Verified against the file on Aug 5, 2026:</p>
+
+<table>
+<thead><tr><th>Fact</th><th>Value</th><th>How it was checked</th></tr></thead>
+<tbody>
+<tr><td>Source document</td><td><code>iceland-eclipse-2026.html</code>, 54,957 bytes, 923 lines</td><td><code>wc -c</code>, <code>wc -l</code></td></tr>
+<tr><td>Top-level sections</td><td>9, each <code>&lt;details class="sec" id="…"&gt;</code> with a stable slug id</td><td><code>grep -n 'details class="sec"'</code></td></tr>
+<tr><td>Sub-headings</td><td>7 <code>&lt;h3&gt;</code>, already carrying composite ids (<code>activity-research--rental-car</code>)</td><td>same grep</td></tr>
+<tr><td>Existing script</td><td>One <code>&lt;script&gt;</code> at line 845 — the collapse-all toggle only</td><td><code>grep -n '&lt;script'</code></td></tr>
+<tr><td>Second document</td><td><code>packing/packing-list.html</code>, 35,316 bytes</td><td><code>ls -la</code></td></tr>
+<tr><td>Crew named in the hero</td><td>Rosetta, Kenya, Ed, Ben</td><td>read lines 195–200</td></tr>
+</tbody>
+</table>
+
+<div class="callout">
+  <h4>The single most useful thing about the existing file</h4>
+  <p>
+    <strong>It already has stable ids on every section and sub-heading</strong>, because it was generated
+    with anchor links for the sticky section bar. That means the seed importer does not have to invent
+    identity for the big structural pieces — <code>#flights</code> is <code>#flights</code> before and after
+    the migration, so the section nav, any link anyone has already sent, and the block ids all agree for
+    free. Only the leaf blocks inside each section need new ids.
+  </p>
+</div>
+
+<h2 id="shape">The shape: blocks, not a text file</h2>
+
+<p>
+  The document is stored as <strong>an ordered list of blocks</strong>. A block is one top-level element
+  inside a section body — a <code>.card</code>, a <code>.tw</code>-wrapped table, a <code>&lt;p&gt;</code>,
+  a <code>.flag</code>, a <code>.tl</code> timeline, an <code>&lt;h3&gt;</code>. Each row:
+</p>
+
+<pre><code>blocks(
+  id        TEXT PRIMARY KEY,   -- 'flights-table', 'open-questions-list', nanoid for new ones
+  section   TEXT NOT NULL,      -- 'flights'  → which &lt;details&gt; it renders into
+  ord       REAL NOT NULL,      -- fractional index; insert between = midpoint, no renumber
+  html      TEXT NOT NULL,      -- the block's own outerHTML, sanitised
+  rev       INTEGER NOT NULL,   -- bumped every write; the compare-and-set token
+  updated_at INTEGER NOT NULL,
+  updated_by TEXT               -- 'rosetta' | 'kenya' | 'ed' | 'ben' | 'claude'
+)</code></pre>
+
+<p>
+  Three properties make this the right size of idea for a three-day build, and each one is a thing that
+  would otherwise have to be solved:
+</p>
+
+<ul>
+  <li><strong>Merges stop mattering.</strong> Two people editing different blocks never conflict, and at
+    four users editing a nine-section trip plan, different blocks is the overwhelmingly common case. That
+    is what buys the right to skip CRDTs, which are the only correct answer for concurrent edits
+    <em>inside</em> one paragraph and are not buildable by Thursday.</li>
+  <li><strong>Claude gets a addressable surface.</strong> Both AI paths — the chat box and the hover
+    comment — are the same operation underneath: <em>replace the html of block X</em>. See
+    <a href="claude-editor-contract.html">claude-editor-contract</a>, which exists because two specs
+    needed the same protocol and it should not be defined twice.</li>
+  <li><strong>The wire stays small.</strong> A block edit broadcasts one block, not a 55&nbsp;KB document.
+    That matters on Icelandic mobile data and on a phone in an airport lounge.</li>
+</ul>
+
+<h3>Fractional ordering, and why not integers</h3>
+<p>
+  <code>ord</code> is a float. Inserting between blocks at 3.0 and 4.0 writes 3.5; the row is one INSERT and
+  no other row moves. With integer ordering, every insert rewrites the tail of the section, which means a
+  broadcast per row and a race with anyone editing one of them. The cost is that ~50 consecutive inserts at
+  the same point exhaust float precision; the mitigation is a renumber pass when any gap drops below
+  <code>1e-6</code>, which at four users planning one trip will never fire, and if it does it is a single
+  transaction nobody notices.
+</p>
+
+<h2 id="sync">Sync: one Durable Object, WebSockets, hibernation</h2>
+
+<p>
+  One document, one Durable Object instance (<code>DOC</code> namespace, id derived from the doc slug
+  <code>iceland-2026</code>). The DO holds the SQLite rows and every live WebSocket. All writes go through
+  it, so writes are serialised by construction — there is no second writer to race with.
+</p>
+
+<pre><code>client  → { t:'hello',  since:rev }              on connect
+server  → { t:'sync',   blocks:[…], rev }        full state, once
+client  → { t:'edit',   id, html, baseRev }      a human typed
+client  → { t:'insert', section, afterId, html }
+client  → { t:'delete', id, baseRev }
+client  → { t:'move',   id, section, afterId }
+server  → { t:'block',  id, html, ord, rev, by } fan-out to everyone else
+server  → { t:'reject', id, rev, html }          baseRev was stale; here is current
+server  → { t:'gone',   id }</code></pre>
+
+<div class="callout">
+  <h4>Use WebSocket <em>hibernation</em>, not plain <code>accept()</code></h4>
+  <p>
+    <code>state.acceptWebSocket(ws)</code> plus the <code>webSocketMessage</code> handler lets the DO
+    evict from memory while sockets stay open, and wake on the next frame. Four friends will leave this tab
+    open for eleven days across two continents. Without hibernation that is a Durable Object billed for
+    wall-clock duration the entire time, for a document nobody is touching at 4am. With it, the idle cost is
+    the storage rows. This is a one-line difference at build time and a large difference on the invoice.
+  </p>
+</div>
+
+<h3>Conflict handling: compare-and-set on <code>rev</code>, and say so out loud</h3>
+<p>
+  Every mutation carries the <code>baseRev</code> the client was showing. If it does not match, the server
+  refuses and returns the current html. <strong>Last-write-wins is not acceptable here even though it is
+  simpler</strong>, and the reason is specific rather than theoretical: the AI paths rewrite whole blocks.
+  A silent overwrite of a human's typing by a Claude rewrite that was computed against a two-minute-old
+  version of the block is exactly the failure that makes people stop trusting a shared document, and it
+  would happen on the first afternoon. On reject the client shows the incoming version beside its own and
+  keeps the local text in the box — nothing typed is ever thrown away by the machine.
+</p>
+
+<h2 id="seed">Seeding: import the existing file once, then never again</h2>
+
+<p>
+  <code>scripts/seed-doc.mjs</code> parses <code>iceland-eclipse-2026.html</code>, walks each
+  <code>&lt;details class="sec"&gt;</code>, and emits one block per top-level child of its
+  <code>.secbody</code>. Ids come from an existing <code>id</code> attribute where there is one, otherwise
+  from <code>&lt;section-slug&gt;-&lt;n&gt;</code>.
+</p>
+
+<div class="callout warn">
+  <h4>The seed runs exactly once, and the file stops being the source of truth the moment it does</h4>
+  <p>
+    After seeding, <strong><code>iceland-eclipse-2026.html</code> is a historical artifact</strong>. Editing
+    it changes nothing; re-running the seed would destroy whatever the four of them have written. The script
+    therefore refuses to run against a non-empty document unless passed <code>--force</code>, and the file
+    gets a banner at the top pointing at the live URL. This is the single most likely way to lose real
+    planning work in this project, which is why it is a hard guard in code rather than a note here.
+  </p>
+</div>
+
+<p>
+  The chrome — hero, sticky section bar, footer, all 191 lines of CSS — is <strong>not</strong> blocks. It
+  ships as the Worker's static shell in <code>worker/public/</code>, lifted verbatim from the original file
+  so the thing looks identical on Thursday to the thing Rosetta already made. Only the nine section bodies
+  are live.
+</p>
+
+<h2 id="build">Build order</h2>
+
+<ol>
+  <li><code>wrangler.toml</code>: Worker <code>iceland-doc</code>, DO binding <code>DOC</code> → class
+    <code>DocRoom</code>, SQLite migration tag, assets binding for <code>worker/public/</code>.</li>
+  <li><code>room.ts</code>: schema bootstrap, <code>hello</code>/<code>sync</code>, hibernating sockets,
+    broadcast helper.</li>
+  <li><code>blocks.ts</code>: the sanitiser (see below), fractional-index helper, the four mutations.</li>
+  <li><code>seed-doc.mjs</code> → <code>POST /admin/seed</code> behind the passcode from
+    <a href="access-and-identity.html">access-and-identity</a>.</li>
+  <li><code>app.js</code>: render blocks into section bodies, reconnect with backoff, apply broadcasts.</li>
+  <li>Deploy to <code>iceland-doc.&lt;subdomain&gt;.workers.dev</code> and open it on a phone
+    <em>before</em> wiring the domain — see <a href="domain-wiring.html">domain-wiring</a>, which can
+    finish in parallel and must not be allowed to block this.</li>
+</ol>
+
+<h3>Sanitising is not optional, and it is not about the four of them</h3>
+<p>
+  Block html is written by humans (<code>contenteditable</code>, so the browser emits whatever it likes) and
+  by Claude (which will happily be told to emit a <code>&lt;script&gt;</code> by anything it reads). The
+  document will hold pasted text from booking confirmations and festival pages. Allowlist on the way
+  <em>in</em>, at the DO, not on render: tags <code>p ul ol li h3 h4 strong em a table thead tbody tr th td
+  div span small br code</code>, attributes <code>href class id colspan rowspan</code>, and
+  <code>href</code> restricted to <code>https:</code>, <code>mailto:</code> and <code>#</code>. Server-side,
+  because a client-side sanitiser protects only the client that runs it, and the DO is the thing that
+  stores it for everyone else.
+</p>
+
+<h2 id="verify">Verification — what has to be exercised, not asserted</h2>
+
+<p>A build passing is not four people editing a document. Before this spec is called done:</p>
+
+<ol>
+  <li><strong>Two devices, one block.</strong> Laptop and phone on the live URL. Edit the Flights table on
+    one; it appears on the other without a reload. This is the whole feature; if it needs a refresh it is
+    not done.</li>
+  <li><strong>Stale write is refused.</strong> Open two tabs, edit a block in both from the same starting
+    rev, submit the second. Expect <code>reject</code>, both versions on screen, nothing lost.</li>
+  <li><strong>Hibernation actually happens.</strong> Leave a socket open, wait past the idle window, edit
+    from the other device, confirm the frame arrives — a broken hibernation handler looks exactly like a
+    working one until the DO evicts.</li>
+  <li><strong>Reload equals broadcast.</strong> Hard-refresh after a series of edits; the document must be
+    identical to what the other tab shows. Divergence here means <code>sync</code> and the incremental path
+    disagree, which is the bug that eats an afternoon in week two.</li>
+  <li><strong>Seed guard.</strong> Run <code>seed-doc.mjs</code> a second time against the live document and
+    confirm it refuses.</li>
+</ol>
+
+<details class="fold">
+  <summary>Why not Yjs, Liveblocks, or a Google Doc<span class="hint">the three obvious alternatives, and why each loses</span></summary>
+  <div class="body">
+    <p>
+      <strong>A Google Doc</strong> is the honest baseline and it wins on collaboration outright. It loses
+      because it cannot do the thing that was actually asked for: hovering a paragraph, saying "this is too
+      expensive, find something cheaper", and having the paragraph rewrite itself. It also throws away the
+      document Rosetta already designed — the eclipse clock, the timeline, the pill statuses — and re-typing
+      that into Docs is both a loss and a day of work.
+    </p>
+    <p>
+      <strong>Yjs</strong> is the correct engineering answer and the wrong answer for Thursday. Real CRDT
+      editing means a rich-text binding (y-prosemirror or similar), a schema for the document's tables and
+      cards, and a provider. It is a week of work to get to the point where the current design is on its
+      first afternoon, and it buys concurrent editing <em>within</em> a paragraph — a case that arises when
+      two of four friends type into the same sentence at the same second.
+    </p>
+    <p>
+      <strong>Liveblocks</strong> or similar removes the sync work and adds an account, a dashboard, a
+      pricing tier, and a second place the trip data lives. The DO is already in the account and already
+      paid for.
+    </p>
+    <p>
+      The block model is the deliberate middle: no merge algorithm, no vendor, and the AI surface falls out
+      of it for free. Revisit after the trip if this becomes a thing anyone uses twice.
+    </p>
+  </div>
+</details>
+
+<details class="fold">
+  <summary>Rejected: keeping the document as a file and syncing the file<span class="hint">the tempting shortcut</span></summary>
+  <div class="body">
+    <p>
+      Store the whole 55&nbsp;KB document as one string, broadcast it on change, last-write-wins. It is an
+      hour of work and it fails on the first Thursday evening when two people are both adding things: every
+      save silently reverts the other person's edit, and there is no way to tell it happened. The block
+      model is perhaps four hours more and does not have that failure at all. This was considered seriously
+      because of the deadline and rejected on the grounds that a document that eats edits is worse than no
+      shared document, since people will have <em>stopped keeping the information anywhere else</em>.
+    </p>
+  </div>
+</details>
+
+</div>
+</body>
+</html>

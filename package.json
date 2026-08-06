@@ -1,0 +1,22 @@
+{
+  "name": "iceland-doc",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "build:shell": "node scripts/build-shell.mjs",
+    "seed": "node scripts/seed.mjs",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "latest",
+    "node-html-parser": "^7.0.1",
+    "typescript": "^5.9.2",
+    "wrangler": "^4.119.0"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.70.0"
+  }
+}

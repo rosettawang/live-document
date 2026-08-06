@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="spec-status" content="done" />
+<meta name="spec-priority" content="15" />
+<meta name="spec-priority-why" content="Must land with live-doc-core, not after it. The moment the URL is shareable it is also public, and it holds four people's flight numbers and spends Rosetta's Anthropic balance on every AI edit. Retrofitting a gate onto a link four friends already have is worse than building it on day one." />
+<meta name="spec-needs" content="live-doc-core" />
+<meta name="spec-touches" content="worker/src/index.ts worker/src/auth.ts worker/public/app.js worker/public/gate.html" />
+<meta name="spec-decision" content="RESOLVED Aug 6, 2026. TYPE YOUR NAME — case-insensitive prefix match, so 'Ed', 'ed', 'Ed Smith' and 'Edward' all sign in as Ed, and Kenya answers to both her spelling and the document's. Non-name words were tried on Aug 5 to stop the four impersonating each other and rejected as too strict for a trip plan: 'its not that strict dont need to gate the names so hard.' The gate now stops crawlers, not friends." />
+<meta name="spec-decision" content="Is the AI spend gated harder than reading? Recommended YES — the passcode admits you to the document, but every AI call is additionally rate-limited per name and per day (see claude-editor-contract). A leaked link should cost embarrassment, not an unbounded Anthropic bill." />
+<title>Spec — Who gets in, and who is speaking</title>
+<link rel="stylesheet" href="spec.css" />
+</head>
+<body>
+
+<div class="internal">Internal planning document — <b>not part of the site</b> · never serve <code>specs/</code></div>
+<div class="countdown">Departure <b>Sat 8 Aug 2026</b></div>
+
+<div class="wrap">
+
+<p><a href="index.html">← Specs index</a></p>
+
+<h1>Who gets in, and who is speaking</h1>
+<p class="meta">Status: done <span class="tag tag-done">done</span> · created Aug 5, 2026 · shipped Aug 5, 2026 · priority 15 · account step</p>
+
+<p class="lede">
+  Two small problems that are really one: <strong>a public URL that should not be fully public</strong>, and
+  <strong>a shared document where "who changed this?" is the first question anyone asks.</strong>
+</p>
+
+<div class="callout warn">
+  <h4>What is actually at stake, stated plainly so the gate is sized correctly</h4>
+  <p>
+    The document contains four people's flight numbers, arrival times, where they are sleeping, and
+    eventually booking references. It also holds a button that spends money from Rosetta's Anthropic
+    account on every press. <strong>Neither of those is catastrophic if leaked, and neither should be
+    left open.</strong> This is a passcode problem, not an auth problem — the failure mode is a stranger
+    scribbling on a trip plan or running up $40 of tokens, not a breach.
+  </p>
+  <p>
+    Sizing it correctly matters in both directions: an OAuth flow here would be wasted work that does not
+    ship by Thursday, and no gate at all is a guessable subdomain holding an itinerary.
+  </p>
+</div>
+
+<h2 id="gate">The gate — type your name</h2>
+
+<div class="callout">
+  <h4>The word <em>is</em> the login, and that removes a whole step</h4>
+  <p>
+    <strong>Rosetta, Aug 5, 2026:</strong> <em>"passcode is either Ed or Kenia or Rosetta and then i know
+    who is editing."</em> The original design had a shared word <em>plus</em> a name to pick — two things
+    to get right on a phone, and a name anyone could set to anything. Collapsing them means
+    <strong>you type one thing and that thing is who you are</strong>. Nothing to choose, nothing to
+    mismatch, and attribution becomes a property of getting in rather than an honour system on top of it.
+  </p>
+  <p>
+    Matching is a case-insensitive <strong>prefix</strong>, settled Aug 6, 2026:
+    <em>"they might add last name so as long as it starts with ed and kenia or rosetta."</em> So
+    <code>Ed</code>, <code>ed</code>, <code>Ed Smith</code> and <code>Edward</code> all arrive as Ed.
+  </p>
+</div>
+
+<ol>
+  <li>Any request without a valid cookie gets <code>gate.html</code>: one text field, one button.</li>
+  <li><code>POST /auth</code> with the name. The Worker resolves it to a person, then sets a signed,
+    <code>HttpOnly</code>, <code>Secure</code>, <code>SameSite=Lax</code> cookie holding
+    <code>{name, iat}</code>, 30-day expiry — comfortably past the Aug 19 return.</li>
+  <li>The WebSocket upgrade checks the same cookie. <strong>A gate on the HTML that leaves the socket open
+    is not a gate</strong>, and it is the standard way this gets built wrong: the document is served through
+    one check and then streamed through none.</li>
+  <li>Unknown name: fixed 400ms delay, one generic message. The resolver checks every entry rather than
+    returning on the first hit, and takes the <em>longest</em> match — so a two-entry person like Kenya
+    resolves the same either way.</li>
+  <li>The gate remembers where you were going, so a link straight to <code>/packing</code> survives
+    signing in.</li>
+</ol>
+
+<div class="callout ask">
+  <h4>Login pass — set the crew list</h4>
+  <pre style="margin:.6rem 0"><code>npx wrangler secret put DOC_PASSCODE</code></pre>
+  <p>Currently, and deployed Aug 6, 2026:</p>
+  <pre style="margin:.6rem 0"><code>Rosetta:&lt;match&gt;,Kenya:&lt;match&gt;,Kenya:&lt;alt-spelling&gt;,Ed:&lt;match&gt;,Ben:&lt;match&gt;</code></pre>
+  <p class="dim">The live values are not written down here on purpose — they are in the <code>DOC_PASSCODE</code> secret, and this folder is in a public repository. <code>npx wrangler secret list</code> confirms it is set; nothing but Cloudflare knows what it says.</p>
+  <p>
+    <code>Name:match</code> pairs, comma separated. The left side is what shows in the margin and in
+    presence; the right side is what someone types. Kenya has two entries because she writes
+    <em>Kenia</em> and the trip document says <em>Kenya</em>.
+  </p>
+  <p>
+    <strong>Adding a fifth person is one command</strong> — append <code>,Ada:ada</code> and re-run. No
+    deploy, no code change. Same move to harden one person later if the document ever holds anything worth
+    protecting: replace their right-hand side with something unguessable.
+  </p>
+  <p class="dim">
+    Note the cost of any change: cookies are signed with this secret, so editing it signs everyone out.
+    They just type their name again — and since Aug 5 the page says so rather than silently failing.
+  </p>
+</div>
+
+<div class="callout warn">
+  <h4>Names, after a round trip through the alternative</h4>
+  <p>
+    <strong>Aug 6, 2026 — this is where it landed: you type your name.</strong> Matching is a
+    case-insensitive prefix, so a surname is fine and so is any capitalisation. Kenya is registered under
+    both <code>kenia</code> and <code>kenya</code>.
+  </p>
+  <p>
+    The reasoning below is kept because the trade-off is real and someone will re-propose the other side.
+    It was tried, and rejected for good reason.
+  </p>
+</div>
+
+<details class="fold">
+  <summary>The impersonation argument, tried and overruled<span class="hint">why names lose, and why that was still the right call</span></summary>
+  <div class="body">
+  <p>
+    The obvious reading of "passcode is either Ed or Kenia or Rosetta" is that each person types their own
+    name. It was built that way and it is wrong, for a reason that only shows up when you say it out loud:
+    <strong>if Ed's word is "ed", then Ed's word is known to Kenya, Ben and Rosetta too.</strong> Any of the
+    four can sign in as any other, so the attribution the feature exists to provide is decorative.
+    Rosetta, Aug 5, 2026: <em>"um ed should not be in as me."</em>
+  </p>
+  <p>
+    Generated words fix it while keeping the property that mattered — one thing to type, and the thing you
+    type is who you are. Each person is told only their own.
+  </p>
+  <p>
+    <strong>Residual, stated rather than hidden:</strong> whoever sets the secret can read every word, so
+    Rosetta can still sign in as Ed. Closing that needs per-person credentials the server never sees, which
+    is the accounts system this whole design exists to avoid. Among four friends planning a holiday, the
+    line is drawn here deliberately.
+  </p>
+  <p>
+    <strong>Overruled Aug 6, 2026,</strong> and correctly. Generated words meant a second thing to
+    remember, distributed one-to-one, for a document whose worst-case compromise is a stranger scribbling
+    on a trip plan. The friction was certain; the threat was not.
+  </p>
+  </div>
+</details>
+
+<h2 id="identity">Identity: a name, not an account</h2>
+
+<p>
+  The word you type resolves to a name, which lives in the signed cookie and rides along with every
+  mutation as <code>updated_by</code>. Nobody picks it; it falls out of signing in. That single field pays
+  for itself three times over:
+</p>
+
+<ul>
+  <li><strong>Attribution in the margin.</strong> "Ben · 14:20" beside a changed block, which is the
+    difference between a document people trust and a document people argue about.</li>
+  <li><strong>Presence.</strong> <a href="presence-and-history.html">presence-and-history</a> needs a label
+    for the dots.</li>
+  <li><strong>Rate limiting.</strong> <a href="claude-editor-contract.html">claude-editor-contract</a>
+    meters AI calls per name per day, which is impossible without one.</li>
+</ul>
+
+<p>
+  <strong>It is a weak boundary and should not be dressed as a strong one.</strong> Anyone holding Ed's
+  word is Ed as far as this document is concerned, and the person who set the secret holds everyone's.
+  Among four friends planning a holiday that is the right place to stop; pretending otherwise would mean
+  building the accounts system this spec exists to avoid.
+</p>
+
+<h2 id="claude">Claude gets a name too</h2>
+
+<p>
+  AI-written blocks are attributed to <code>claude</code> and rendered with a distinct marker in the margin.
+  This is not decoration. When a rewrite is wrong — and some will be — the first thing anyone needs to know
+  is whether a person wrote that sentence or a model did, before deciding whether to trust the price in it.
+  It is also what makes <a href="presence-and-history.html">undo</a> legible: "revert Claude's change to
+  this block" is a comprehensible action in a way that "revert to rev 47" is not.
+</p>
+
+<h2 id="verify">Verification</h2>
+<ol>
+  <li><code>curl -sI https://&lt;url&gt;/</code> with no cookie → the gate, not the document.</li>
+  <li><code>websocat</code> or a fetch with <code>Upgrade: websocket</code> and no cookie → rejected.
+    <strong>Test this one specifically</strong>; it is the check most likely to have been skipped.</li>
+  <li>Wrong passcode returns the same message and timing as an unknown name.</li>
+  <li>Edit from two devices under two names; confirm the margin shows the right person on each block.</li>
+  <li><code>curl</code> the document with a valid cookie and confirm <code>X-Robots-Tag: noindex</code> is
+    on the response — see <a href="domain-wiring.html">domain-wiring</a>.</li>
+</ol>
+
+<details class="fold">
+  <summary>Rejected: per-person magic links, and why the passcode is not just laziness<span class="hint">the argument, in case it comes up again</span></summary>
+  <div class="body">
+    <p>
+      Magic links give real per-person identity, revocability, and no shared secret to leak. They also need
+      four email addresses (Ed's and Ben's are not in this project), an email sender configured on a new
+      domain with no DKIM history — so the first send goes to spam — and a token flow to build and test.
+      That is most of a day, and the failure mode is a friend who cannot get in on the Thursday night when
+      the car decision is being made.
+    </p>
+    <p>
+      The passcode is chosen because <strong>the trip is in three days and the threat model is a crawler</strong>.
+      If this document outlives the trip, revisit; nothing here forecloses it, because the cookie already
+      carries a name and the socket already checks it.
+    </p>
+  </div>
+</details>
+
+</div>
+</body>
+</html>
