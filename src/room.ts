@@ -8,7 +8,7 @@
  */
 
 import { sanitize } from "./sanitize";
-import { edit, type Op } from "./claude";
+import { edit, type Op, type InputImage } from "./claude";
 import SEED_ICELAND from "../seed/iceland.json";
 import SEED_PACKING from "../seed/packing.json";
 
@@ -43,6 +43,21 @@ interface BlockRow {
 
 /** AI calls per person per day. A leaked link should cost embarrassment, not an unbounded bill. */
 const AI_DAILY_LIMIT = 30;
+
+/**
+ * Photo attachments on a chat message.
+ *
+ * The browser downscales to 1400px and re-encodes as JPEG before sending, so a
+ * normal attachment lands around 200–400 KB. These ceilings exist for the paths
+ * that skip the browser — a scripted client, or a resize that silently failed —
+ * and for the case where someone attaches a whole camera roll. Four images is
+ * roughly 6k extra input tokens, which is a third of what the document itself
+ * costs, so the per-day cap already covers the money; this covers the accident.
+ */
+const MAX_IMAGES = 4;
+/** Base64 characters, not bytes: ~3.7 MB decoded, under Anthropic's 5 MB limit. */
+const MAX_IMAGE_CHARS = 5_000_000;
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
 
 export class DocRoom implements DurableObject {
   private sql: SqlStorage;
@@ -481,9 +496,17 @@ export class DocRoom implements DurableObject {
       });
     }
 
-    const body = (await request.json()) as { instruction: string; blockId?: string };
+    const body = (await request.json()) as {
+      instruction: string;
+      blockId?: string;
+      images?: InputImage[];
+    };
     const instruction = (body.instruction ?? "").slice(0, 4000).trim();
-    if (!instruction) return Response.json({ reply: "Nothing to do.", ops: [] });
+    const images = this.takeImages(body.images);
+
+    // A photo with no caption is a real message — "here, deal with this" — so
+    // emptiness is only emptiness when there is nothing attached either.
+    if (!instruction && !images.length) return Response.json({ reply: "Nothing to do.", ops: [] });
 
     const blocks = this.allBlocks();
 
@@ -509,6 +532,7 @@ export class DocRoom implements DurableObject {
         context,
         who,
         focusId: focus?.id,
+        images,
       });
     } catch (err) {
       return Response.json({
@@ -519,6 +543,29 @@ export class DocRoom implements DurableObject {
 
     const applied = await this.applyOps(result.ops, "claude");
     return Response.json({ reply: result.reply, applied, budgetLeft: left - 1 });
+  }
+
+  /**
+   * Keep the attachments that are actually sendable and drop the rest silently.
+   *
+   * Silently is deliberate: the alternative is refusing the whole message
+   * because the fourth screenshot was a HEIC, which loses the three good ones
+   * and the thing the person was trying to say. Claude reports what it saw in
+   * its reply, so a photo that didn't make it is visible in the answer.
+   */
+  private takeImages(raw: unknown): InputImage[] {
+    if (!Array.isArray(raw)) return [];
+    const out: InputImage[] = [];
+    for (const item of raw) {
+      if (out.length >= MAX_IMAGES) break;
+      const media_type = (item as InputImage)?.media_type;
+      const data = (item as InputImage)?.data;
+      if (typeof data !== "string" || !data) continue;
+      if (!ALLOWED_IMAGE_TYPES.has(media_type)) continue;
+      if (data.length > MAX_IMAGE_CHARS) continue;
+      out.push({ media_type, data });
+    }
+    return out;
   }
 
   private buildOutline(blocks: BlockRow[]): string {

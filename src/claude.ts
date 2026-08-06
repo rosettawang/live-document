@@ -124,11 +124,33 @@ The page has an established visual language. Reuse these classes; do not write i
 7. Dates as "12 August", times as 24-hour, prices with the currency as written nearby.
 8. **A question is not an edit.** If the user is asking rather than instructing, answer in \`reply\` and return an empty \`ops\` array.
 
+## Photos
+
+Messages may arrive with photos attached. In practice they are screenshots of a booking confirmation, a shift roster, a ferry timetable, a menu, a road sign, or a phone showing someone else's flight — the fastest way to get a fact out of another app and into this document.
+
+- **Read the photo as a source, and treat what it says as the user's own words.** A confirmation screenshot is as good as the user typing the numbers out, and it is less error-prone.
+- **Transcribe exactly.** Booking references, flight numbers, times, dates, gate numbers and prices are the whole reason the photo was sent. Copy them character for character. Do not tidy a reference number or convert a currency.
+- **Rule 4 still holds, and photos are where it gets tested.** Only write down what is actually legible. If a number is cut off, blurred, or you are reading it at an angle, write the part you can read, mark the rest unread, and say so in your reply. A confidently wrong confirmation code is worse than a visible gap — someone will stand at a desk with it.
+- **A photo with no instruction is an instruction**: work out what it is, and put it where it belongs in the document. Say in your reply where you put it.
+- **Say what you saw.** One clause is enough: "from the Icelandair screenshot" tells the group which photo a change came from.
+- **Do not describe scenery back to the group.** A photo of a waterfall with "should we go here?" is a question, not an edit.
+
 Keep \`reply\` to one or two sentences. The group reads it in a narrow chat panel, not a report.`;
+
+/**
+ * A photo attached to a chat message. Already downscaled and re-encoded by the
+ * browser — see the attach path in public/app.js — so what arrives here is a
+ * few hundred KB of JPEG rather than a 12 MP original off someone's phone.
+ */
+export interface InputImage {
+  media_type: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+  /** Base64, no data: prefix. */
+  data: string;
+}
 
 interface EditRequest {
   apiKey: string;
-  /** What the user typed. */
+  /** What the user typed. May be empty when the message is only photos. */
   instruction: string;
   /** Section slug -> ordered block ids, so Claude can target inserts. */
   outline: string;
@@ -138,6 +160,46 @@ interface EditRequest {
   who: string;
   /** Set when the request came from a hover comment on one specific block. */
   focusId?: string;
+  /** Photos attached to the message, in the order they were added. */
+  images?: InputImage[];
+}
+
+/**
+ * One user turn: the document, then the photos, then what was typed.
+ *
+ * Photos sit immediately before the instruction rather than after it, because
+ * the model reads better when the image precedes the question about it — and
+ * each one is labelled so a reply can say "the second screenshot" and have that
+ * mean something to the person who attached them.
+ */
+function buildContent(req: EditRequest, focus: string): unknown[] {
+  const content: unknown[] = [
+    {
+      type: "text",
+      text: `## Document outline\n\n${req.outline}\n\n## Blocks you can edit\n\n${req.context}\n\n## Request${focus}`,
+    },
+  ];
+
+  const images = req.images ?? [];
+  images.forEach((img, i) => {
+    if (images.length > 1) content.push({ type: "text", text: `Photo ${i + 1} of ${images.length}:` });
+    content.push({ type: "image", source: { type: "base64", media_type: img.media_type, data: img.data } });
+  });
+
+  // A photo on its own is a legitimate message — "here, deal with this" — so it
+  // gets an explicit instruction rather than an empty string the model has to
+  // interpret. Without this the model tends to describe the image back.
+  const typed = req.instruction.trim();
+  content.push({
+    type: "text",
+    text:
+      typed ||
+      (images.length === 1
+        ? "No message, just this photo. Work out what it is, pull the facts out of it, and put them where they belong in the document."
+        : "No message, just these photos. Work out what they are, pull the facts out of them, and put them where they belong in the document."),
+  });
+
+  return content;
 }
 
 export async function edit(req: EditRequest): Promise<EditResult> {
@@ -161,12 +223,7 @@ export async function edit(req: EditRequest): Promise<EditResult> {
       effort: "medium",
       format: { type: "json_schema", schema: OPS_SCHEMA },
     },
-    messages: [
-      {
-        role: "user",
-        content: `## Document outline\n\n${req.outline}\n\n## Blocks you can edit\n\n${req.context}\n\n## Request${focus}\n\n${req.instruction}`,
-      },
-    ],
+    messages: [{ role: "user", content: buildContent(req, focus) }],
   };
 
   const message = await client.messages.create(params as never);

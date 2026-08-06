@@ -459,22 +459,133 @@
   $("#chatToggle").addEventListener("click", () => { openChat(); $("#chatInput").focus(); });
   $("#chatClose").addEventListener("click", closeChat);
 
+  /* ------------------------------------------------------- photos in chat */
+
+  /* Most of what needs adding to this document already exists as a screenshot
+     on somebody's phone: a confirmation email, a shift roster, a road sign.
+     Typing it out is the slow, error-prone step, so the attach path exists to
+     skip it. Resizing happens here rather than on the Worker because a 12 MP
+     photo is 4 MB on a campsite's 3G and the model reads 1400px just as well. */
+
+  const MAX_PHOTOS = 4;
+  const MAX_EDGE = 1400;
+  const pending = [];   // { id, name, dataUrl, media_type, data }
+
+  /** Draw through a canvas: caps the long edge and strips EXIF along the way. */
+  async function shrink(file) {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+    const w = Math.round(bitmap.width * scale);
+    const h = Math.round(bitmap.height * scale);
+
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    canvas.getContext("2d").drawImage(bitmap, 0, 0, w, h);
+    bitmap.close?.();
+
+    // JPEG for everything. PNG screenshots of text are often larger than the
+    // JPEG at a quality the model can still read cleanly.
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+    return { dataUrl, media_type: "image/jpeg", data: dataUrl.slice(dataUrl.indexOf(",") + 1) };
+  }
+
+  async function attach(files) {
+    for (const file of files) {
+      if (!file || !file.type.startsWith("image/")) continue;
+      if (pending.length >= MAX_PHOTOS) {
+        logMsg("err", `${MAX_PHOTOS} photos is the limit for one message.`);
+        break;
+      }
+      try {
+        const shrunk = await shrink(file);
+        pending.push({ id: crypto.randomUUID(), name: file.name || "photo", ...shrunk });
+      } catch {
+        // HEIC off an iPhone is the usual cause: Safari decodes it, Chrome does not.
+        logMsg("err", `Couldn't read ${escapeHtml(file.name || "that image")}. Try a screenshot of it instead.`);
+      }
+    }
+    renderTray();
+  }
+
+  function renderTray() {
+    const tray = $("#chatTray");
+    tray.hidden = pending.length === 0;
+    tray.innerHTML = pending
+      .map(
+        (p) =>
+          `<div class="thumb"><img src="${p.dataUrl}" alt="${escapeHtml(p.name)}">` +
+          `<button type="button" data-drop="${p.id}" aria-label="Remove ${escapeHtml(p.name)}">✕</button></div>`,
+      )
+      .join("");
+  }
+
+  $("#chatTray").addEventListener("click", (e) => {
+    const id = e.target.closest("[data-drop]")?.dataset.drop;
+    if (!id) return;
+    pending.splice(pending.findIndex((p) => p.id === id), 1);
+    renderTray();
+  });
+
+  $("#chatAttach").addEventListener("click", () => $("#chatFile").click());
+  $("#chatFile").addEventListener("change", (e) => {
+    attach([...e.target.files]);
+    e.target.value = "";   // so re-picking the same file fires change again
+  });
+
+  // Paste is the fast path: screenshot, ⌘V, Enter — no file dialog at all.
+  $("#chatInput").addEventListener("paste", (e) => {
+    const files = [...(e.clipboardData?.files ?? [])];
+    if (files.length) { e.preventDefault(); attach(files); }
+  });
+
+  for (const ev of ["dragenter", "dragover"]) {
+    chat.addEventListener(ev, (e) => {
+      if (!e.dataTransfer?.types.includes("Files")) return;
+      e.preventDefault();
+      chat.classList.add("dropping");
+    });
+  }
+  chat.addEventListener("dragleave", (e) => {
+    if (!chat.contains(e.relatedTarget)) chat.classList.remove("dropping");
+  });
+  chat.addEventListener("drop", (e) => {
+    if (!e.dataTransfer?.files.length) return;
+    e.preventDefault();
+    chat.classList.remove("dropping");
+    openChat();
+    attach([...e.dataTransfer.files]);
+  });
+
   $("#chatForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const input = $("#chatInput");
     const text = input.value.trim();
-    if (!text) return;
+    if (!text && !pending.length) return;
+
+    // Snapshot and clear now: the round trip is seconds long and the next
+    // message must not pick up photos that already went.
+    const photos = pending.splice(0, pending.length).map(({ media_type, data, dataUrl }) => ({
+      media_type,
+      data,
+      dataUrl,
+    }));
+    renderTray();
 
     input.value = "";
     $("#chatSend").disabled = true;
-    logMsg("me", escapeHtml(text));
-    const thinking = logMsg("bot", "<em class='dim'>thinking…</em>");
+    const shots = photos.map((p) => `<img class="sent" src="${p.dataUrl}" alt="attached photo">`).join("");
+    logMsg("me", (text ? escapeHtml(text) : `<em class="dim">${photos.length === 1 ? "photo" : `${photos.length} photos`}</em>`) + shots);
+    const thinking = logMsg("bot", `<em class='dim'>${photos.length ? "reading…" : "thinking…"}</em>`);
 
     try {
       const res = await fetch(q("/api/chat"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instruction: text }),
+        body: JSON.stringify({
+          instruction: text,
+          images: photos.map(({ media_type, data }) => ({ media_type, data })),
+        }),
       });
       thinking.remove();
       if (res.status === 401) { logMsg("err", "You're signed out — reload and enter your word."); checkSession(); return; }

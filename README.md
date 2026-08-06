@@ -15,6 +15,9 @@ Three ways to change the page, one operation underneath — *replace a block*:
 - **Hover any block, leave a comment.** "too expensive — find something cheaper".
   Claude rewrites that block.
 - **Ask in a chat panel.** For adding things that don't exist yet.
+- **Paste a photo into that panel.** A screenshot of a confirmation email, and the
+  reference numbers land in the right table. Resized to 1400px JPEG in the
+  browser first, so it's a few hundred KB on a bad connection.
 
 Everything lands for everyone over one WebSocket, with presence, attribution and
 undo. There is no build step for the client and no framework.

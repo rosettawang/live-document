@@ -82,11 +82,15 @@ const EDITOR_UI = `
         <li>"Ed lands Aug 9 at 06:30 on FI614 — add him to the flights table"</li>
         <li>"Cut anything over $300 a person from the activity list"</li>
       </ul>
+      <p><strong>Or send a photo.</strong> Screenshot the confirmation email, paste it in here, and I'll read the numbers off it and put them where they go. Faster than typing a booking reference, and harder to get wrong.</p>
       <p class="dim">Everything I change appears for everyone, instantly. Undo is in the bar at the bottom.</p>
     </div>
   </div>
+  <div id="chatTray" hidden></div>
   <form id="chatForm">
-    <textarea id="chatInput" rows="2" placeholder="Change something…"></textarea>
+    <input type="file" id="chatFile" accept="image/*" multiple hidden>
+    <button type="button" id="chatAttach" title="Attach a photo — or just paste one">📷</button>
+    <textarea id="chatInput" rows="2" placeholder="Change something, or paste a screenshot…"></textarea>
     <button type="submit" id="chatSend">Send</button>
   </form>
 </aside>

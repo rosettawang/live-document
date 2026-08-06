@@ -8,8 +8,8 @@
 <meta name="spec-priority-why" content="The other half of Rosetta's 'make a chat that adds text input which changes the contents'. Sorts after the hover comment because it costs ~10x per call and is the weaker interaction for most real edits — but it is the only surface that can add something that does not exist yet." />
 <meta name="spec-needs" content="claude-editor-contract hover-comment-to-edit" />
 <meta name="spec-account" content="yes" />
-<meta name="spec-verified" content="Verified on the live site Aug 5, 2026: asked what was still unbooked; answered accurately from the document, applied 0 ops because it was a question not an instruction, budget decremented 30 to 29, ~8.5s round trip." />
-<meta name="spec-touches" content="worker/public/app.js worker/public/doc.css src/room.ts" />
+<meta name="spec-verified" content="Verified on the live site Aug 5, 2026: asked what was still unbooked; answered accurately from the document, applied 0 ops because it was a question not an instruction, budget decremented 30 to 29, ~8.5s round trip. Photo path verified Aug 6, 2026: a pasted PNG was downscaled and re-encoded to JPEG in the browser, thumbnailed, sent, echoed into the log, and read back character-perfect including the booking reference — 0 ops, because it was a question." />
+<meta name="spec-touches" content="worker/public/app.js worker/public/doc.css src/room.ts src/claude.ts scripts/build-shell.mjs" />
 <meta name="spec-decision" content="Is the chat log shared between the four of them, or per person? Recommended PER PERSON, IN THE BROWSER, not persisted. A shared log is a group chat, and they already have one; what is shared is the document itself, which is the point. Per-person also means nobody has to scroll past someone else's twelve failed attempts to phrase a request." />
 <title>Spec — Asking for a change in words</title>
 <link rel="stylesheet" href="spec.css" />
@@ -85,6 +85,81 @@
   </p>
 </div>
 
+<h2 id="photos">Photos <span class="tag tag-done">done</span></h2>
+
+<p class="lede">
+  <strong>Rosetta, Aug 6, 2026:</strong> <em>"the chat should be able to take in photos."</em> Paste a
+  screenshot into the panel; Claude reads it and files what it says.
+</p>
+
+<div class="callout">
+  <h4>This is the fastest path from a fact existing to a fact being in this document</h4>
+  <p>
+    Almost nothing in this plan originates here. It arrives as a Blue Lagoon confirmation, a shift roster,
+    an Icelandair booking on someone else's phone. The slow, error-prone step was always the human
+    retyping an eleven-character booking reference into a chat box. <strong>A screenshot skips it</strong>, and a model
+    transcribing a reference number is more reliable than a person doing it on a phone at an airport.
+  </p>
+  <p>
+    It also fixes the one thing chat could not do for other people. Ed does not have to describe his
+    flight; he screenshots it. That is the difference between a request and a chore.
+  </p>
+</div>
+
+<h3>Resize in the browser, not on the Worker</h3>
+<p>
+  A phone photo is 4 MB and 12 megapixels. The canvas pass caps the long edge at <strong>1400px and
+  re-encodes as JPEG at 0.82</strong>, which lands around 200–400 KB — and the model reads a 1400px
+  screenshot exactly as well. Doing it client-side means the upload is small on campsite 3G, which is where
+  this will actually be used. It strips EXIF on the way through, which is a free win: photos carry GPS.
+</p>
+<p>
+  Ceilings on the Worker anyway — four images, ~3.7 MB decoded each, four allowed media types — because
+  the browser is not the only possible client and a resize can silently fail. Anything failing those is
+  <strong>dropped silently rather than failing the message</strong>: refusing all four screenshots because
+  the fourth was a HEIC loses the three good ones and the thing the person was trying to say. Claude names
+  what it saw in its reply, so a photo that did not make it is visible in the answer.
+</p>
+
+<h3>Three ways in, because the fast one is invisible</h3>
+<ul>
+  <li><strong>Paste</strong> is the real interaction: screenshot, <kbd>⌘V</kbd>, <kbd>Enter</kbd>. No file
+    dialog at any point.</li>
+  <li><strong>Drop anywhere on the panel</strong>, not on the 58px tray. Aiming a dragged file at a
+    thumbnail strip is a test of motor control nobody signed up for.</li>
+  <li><strong>The 📷 button</strong>, which exists mostly so people discover that any of this is possible.
+    Same reason the empty state now says so in a sentence.</li>
+</ul>
+
+<h3>A photo with no message is a message</h3>
+<p>
+  "Here, deal with this" is the most likely way this gets used, so an empty instruction with an attachment
+  is <em>not</em> treated as an empty request — it gets an explicit "work out what this is and put it where
+  it belongs". Without that the model describes the image back at you, which is useless.
+</p>
+
+<div class="callout warn">
+  <h4>Rule 4 — never invent a fact — is where this earns or loses trust</h4>
+  <p>
+    The failure mode is specific and bad: <strong>a confidently wrong confirmation code</strong>. A blurred
+    digit read as an 8 is worse than an unread one, because someone stands at a desk with it. So the system
+    prompt says to transcribe character for character, and where a value is cut off or unreadable, write the
+    readable part, mark the rest unread, and say so in the reply.
+  </p>
+  <p>
+    <strong>Verified Aug 6, 2026:</strong> a mock Icelandair confirmation came back with the reference,
+    flight number, route and both dates exact — and zero ops, because the message was a question.
+  </p>
+</div>
+
+<h3>Not doing: photos on the hover comment</h3>
+<p>
+  The comment path is deliberately cheap — it sends one section, not the document. Attaching an image to it
+  would roughly double that request for a case that barely exists: you comment on a block because you can
+  see what is wrong with it, not because you have a screenshot of it. Chat is where new facts arrive, so
+  chat is where photos go.
+</p>
+
 <h2 id="verify">Verification</h2>
 <ol>
   <li>"Add a Reykjavík lodging section with three placeholder options" → new blocks appear in a sensible
@@ -93,6 +168,12 @@
   <li>A request touching two sections → both change, count says 2 or more.</li>
   <li>Spend the daily cap → the panel says so plainly and direct editing still works.</li>
   <li>Send with no key set → a message saying the key is missing, not a silent failure.</li>
+  <li>Paste a screenshot of a confirmation → thumbnail appears, sends, and the reference comes back
+    character-perfect.</li>
+  <li>Attach a photo with no text at all → it gets filed somewhere sensible rather than described back.</li>
+  <li>Send a screenshot with a value deliberately cropped in half → the gap is stated, not guessed.</li>
+  <li>Attach five photos → the fifth is refused in the panel, before anything is sent.</li>
+  <li>Send, then immediately send again → the second message carries no photos from the first.</li>
 </ol>
 
 </div>
