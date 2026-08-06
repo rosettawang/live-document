@@ -28,12 +28,13 @@ export const CREW = ["Rosetta", "Kenya", "Ed", "Ben"] as const;
  * Parses the DOC_PASSCODE secret into word → name.
  *
  * Accepts, in increasing order of paranoia:
- *   "rosetta,kenia,ed,ben"                    → each word is the name
- *   "Rosetta:rosetta,Kenya:kenia,Ed:ed"       → explicit name for each word
- *   "Kenya:kenia,Kenya:kenya"                 → two words, same person
+ *   "ada,bo,cyd"                → each word is the name, capitalised
+ *   "Ada:swift,Bo:kestrel"      → explicit name for each match
+ *   "Ada:ada,Ada:adah"          → two matches, same person
  *
- * The last form is how the Kenya/Kenia spelling is handled: both spellings are
- * words, both resolve to the same person, so nobody is locked out by a vowel.
+ * The last form is how a name with two spellings is handled: both resolve to the
+ * same person, so nobody is locked out by a vowel. Examples only — the real
+ * values live in the DOC_PASSCODE secret and are not written down in the repo.
  */
 export function parseCrew(secret: string): Map<string, string> {
   const map = new Map<string, string>();
