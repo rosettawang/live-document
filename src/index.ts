@@ -32,12 +32,38 @@ function harden(res: Response): Response {
   r.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
   r.headers.set("X-Content-Type-Options", "nosniff");
   r.headers.set("Referrer-Policy", "no-referrer");
+  // Never come back over http. Without this the redirect below fires on every
+  // visit until the user happens to type the scheme, and phone keyboards do not.
+  r.headers.set("Strict-Transport-Security", "max-age=31536000");
   return r;
 }
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+
+    // --- https, before anything else -------------------------------------
+    // A Worker on a custom domain answers plain http as happily as https, and
+    // nothing upstream was redirecting. That is not merely untidy: the identity
+    // cookie is `Secure`, so a browser that reaches the gate over http is
+    // *required* to discard the Set-Cookie it gets back. The sign-in then fails
+    // silently and forever — name accepted, 303 to /, cookie dropped, gate
+    // again — with no error anywhere to explain it. Safari also warns, quite
+    // correctly, that the name is being sent in the clear.
+    //
+    // Reported Aug 7, 2026 from a phone, which is exactly where this bites:
+    // tapping a bare host out of a chat message does not imply a scheme.
+    //
+    // 308 rather than 301 for a POST, because 301 lets the browser downgrade the
+    // method to GET. Someone with the http gate already open — which is how this
+    // was found — would otherwise submit their name, be redirected, arrive at
+    // /auth as a GET, match nothing, and be handed the gate again. 308 preserves
+    // the POST so that stale tab signs in correctly instead.
+    if (url.protocol === "http:") {
+      url.protocol = "https:";
+      const code = request.method === "GET" || request.method === "HEAD" ? 301 : 308;
+      return new Response(null, { status: code, headers: { Location: url.toString() } });
+    }
 
     if (url.pathname === "/robots.txt") {
       return new Response("User-agent: *\nDisallow: /\n", {

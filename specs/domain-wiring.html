@@ -77,6 +77,35 @@
   </p>
 </div>
 
+<div class="callout warn">
+  <h4>The second trap, found Aug 7, 2026: a custom domain answers <code>http://</code> too, and that
+    silently breaks sign-in</h4>
+  <p>
+    Nothing upstream was redirecting, so <code>http://iceland.rosettawang.org</code> served the gate over
+    plaintext with a <code>200</code>. Safari warns about the form, which is how it surfaced — but the
+    warning is the harmless half.
+  </p>
+  <p>
+    <strong>The identity cookie is <code>Secure</code>, so a browser reaching the gate over http is required
+    to discard the <code>Set-Cookie</code> it gets back.</strong> The sign-in then fails silently and
+    permanently: name accepted, <code>303</code> to <code>/</code>, cookie dropped, gate again, forever, with
+    no error anywhere. Every other failure in this project announces itself; this one does not, which is what
+    makes it worth writing down.
+  </p>
+  <p>
+    It bites hardest on a phone, which is where it was reported from — tapping a bare hostname out of a chat
+    message does not imply a scheme. Three of the four people here will open this on a phone.
+  </p>
+  <p>
+    Fixed in the Worker rather than with the zone's <em>Always Use HTTPS</em> toggle, so the guarantee lives
+    in the repository and survives anyone touching the dashboard: redirect before any other routing, plus
+    <code>Strict-Transport-Security: max-age=31536000</code> on hardened responses so a browser never tries
+    http twice. <strong>308 for non-GET methods</strong>, because a <code>301</code> lets the browser
+    downgrade a POST to GET — a stale http tab submitting the form would otherwise land on
+    <code>/auth</code> as a GET, match nothing, and be shown the gate again.
+  </p>
+</div>
+
 <h2 id="state">Starting state, verified Aug 5, 2026</h2>
 
 <table>

@@ -74,6 +74,12 @@ A few things that cost real time to find:
 - **Declaring a `routes` entry silently disables `workers.dev`.** For a few
   minutes there was no working URL at all. `"workers_dev": true` keeps the
   fallback alive.
+- **A Worker on a custom domain answers `http://` too, and that silently breaks
+  sign-in.** The identity cookie is `Secure`, so a browser reaching the gate over
+  plaintext must discard the `Set-Cookie` — name accepted, redirect, cookie
+  dropped, gate again, forever, with no error. The Worker now redirects to https
+  before any other routing and sets HSTS. Use **308** for non-GET, or a stale
+  http tab's form POST gets downgraded to GET and misses the auth handler.
 - **Rotating the passcode secret invalidates every cookie**, and a page whose
   socket retries against gate HTML looks alive forever. API and socket paths
   return 401 and the client turns that into a visible "signed out".
