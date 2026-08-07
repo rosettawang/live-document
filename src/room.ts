@@ -161,6 +161,8 @@ export class DocRoom implements DurableObject {
         return this.handleUndo(who);
       case "/api/export":
         return this.handleExport();
+      case "/api/usage":
+        return this.handleUsage();
       default:
         return new Response("not found", { status: 404 });
     }
@@ -541,8 +543,13 @@ export class DocRoom implements DurableObject {
       });
     }
 
-    const applied = await this.applyOps(result.ops, "claude");
-    return Response.json({ reply: result.reply, applied, budgetLeft: left - 1 });
+    const r = await this.applyOps(result.ops, "claude");
+    return Response.json({
+      reply: result.reply + this.explainOutcome(r, result.ops.length),
+      applied: r.applied,
+      attempted: result.ops.length,
+      budgetLeft: left - 1,
+    });
   }
 
   /**
@@ -585,31 +592,88 @@ export class DocRoom implements DurableObject {
       .join("\n\n");
   }
 
-  private async applyOps(ops: Op[], who: string): Promise<number> {
-    let n = 0;
+  /**
+   * Apply Claude's ops, and account for every one that does not land.
+   *
+   * The counts are not bookkeeping. The worst failure this system can have is
+   * Claude replying "Added a bullet to the camping list" while the document
+   * does not move — the person is told it worked, sees nothing, and concludes
+   * the feature is broken. That was reported on Aug 7, 2026 and could not be
+   * reproduced, because nothing anywhere recorded *why* an op did nothing.
+   * Every branch below now has a reason attached to it.
+   */
+  private async applyOps(
+    ops: Op[],
+    who: string,
+  ): Promise<{ applied: number; missing: string[]; unchanged: number; failed: number }> {
+    let applied = 0;
+    let unchanged = 0;
+    let failed = 0;
+    const missing: string[] = [];
+
     for (const op of ops.slice(0, 40)) {
       try {
         if (op.op === "replace") {
           const cur = this.getBlock(op.id);
-          if (!cur) continue;
+          // An id Claude invented, or one deleted mid-request. Silently skipping
+          // this is how a confident reply ends up attached to an unchanged page.
+          if (!cur) {
+            missing.push(op.id);
+            continue;
+          }
           // Claude's ops carry no baseRev — they were computed against whatever
           // the DO held a few seconds ago. Passing the current rev makes the
           // write unconditional on purpose: the alternative is an AI edit that
           // silently no-ops because someone fixed a typo mid-request.
+          const before = cur.html;
           await this.applyEdit(op.id, op.html, cur.rev, who);
+          // applyEdit is a no-op when the sanitised HTML equals what was there.
+          // Usually that means the allowlist stripped exactly what Claude added.
+          if (this.getBlock(op.id)?.html === before) {
+            unchanged++;
+            continue;
+          }
         } else if (op.op === "insert") {
           await this.applyInsert(op.section, op.afterId, op.html, who);
         } else if (op.op === "delete") {
+          const cur = this.getBlock(op.id);
+          if (!cur) {
+            missing.push(op.id);
+            continue;
+          }
           this.applyDelete(op.id, who);
         } else if (op.op === "move") {
+          const cur = this.getBlock(op.id);
+          if (!cur) {
+            missing.push(op.id);
+            continue;
+          }
           this.applyMove(op.id, op.section, op.afterId, who);
         }
-        n++;
+        applied++;
       } catch {
-        /* one bad op shouldn't sink the rest */
+        failed++; /* one bad op shouldn't sink the rest */
       }
     }
-    return n;
+    return { applied, missing, unchanged, failed };
+  }
+
+  /**
+   * Turn a zero-op outcome into a sentence the person can act on.
+   *
+   * Returns "" when the result speaks for itself — a genuine answer to a
+   * genuine question needs no apology.
+   */
+  private explainOutcome(
+    r: { applied: number; missing: string[]; unchanged: number; failed: number },
+    opCount: number,
+  ): string {
+    if (r.applied > 0 || opCount === 0) return "";
+    const why: string[] = [];
+    if (r.missing.length) why.push(`${r.missing.length} pointed at a block that isn't there (${r.missing.slice(0, 3).join(", ")})`);
+    if (r.unchanged) why.push(`${r.unchanged} came back identical after sanitising`);
+    if (r.failed) why.push(`${r.failed} errored on the way in`);
+    return ` — Heads up: I tried ${opCount} change${opCount === 1 ? "" : "s"} and none of them landed${why.length ? `: ${why.join("; ")}` : ""}. Nothing in the document moved. Worth trying again, more specifically.`;
   }
 
   // ------------------------------------------------------------------ seed
@@ -639,6 +703,48 @@ export class DocRoom implements DurableObject {
     const seeded = await this.seedFrom((body.blocks as SeedBlock[]) ?? SEEDS[docSlug] ?? []);
     this.broadcast({ t: "sync", blocks: this.allBlocks() });
     return Response.json({ ok: true, seeded });
+  }
+
+  /**
+   * Who has actually used this document, and how.
+   *
+   * Added Aug 7, 2026 to answer a question nothing could answer: friends said
+   * their edits did nothing, and there was no way to tell whether their
+   * requests ever reached the Worker. A person with zero AI calls and zero
+   * history rows never got in — that is a gate problem, not an editing one, and
+   * it points somewhere completely different from a person whose calls landed
+   * and applied nothing.
+   */
+  private handleUsage(): Response {
+    const ai = this.sql
+      .exec<{ who: string; day: string; n: number }>(
+        "SELECT who, day, n FROM ai_usage ORDER BY day DESC, n DESC",
+      )
+      .toArray();
+
+    const edits = this.sql
+      .exec<{ who: string; n: number; last_at: number }>(
+        'SELECT "by" AS who, COUNT(*) AS n, MAX(at) AS last_at FROM history GROUP BY "by" ORDER BY n DESC',
+      )
+      .toArray();
+
+    const blocks = this.sql
+      .exec<{ who: string; n: number }>(
+        "SELECT updated_by AS who, COUNT(*) AS n FROM blocks GROUP BY updated_by ORDER BY n DESC",
+      )
+      .toArray();
+
+    return Response.json({
+      today: new Date().toISOString().slice(0, 10),
+      dailyLimit: AI_DAILY_LIMIT,
+      aiCallsByPersonAndDay: ai,
+      editsRecordedInHistory: edits.map((e) => ({
+        ...e,
+        last_at: new Date(e.last_at).toISOString(),
+      })),
+      blocksCurrentlyAttributedTo: blocks,
+      liveSockets: this.ctx.getWebSockets().length,
+    });
   }
 
   private handleExport(): Response {

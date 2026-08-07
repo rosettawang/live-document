@@ -439,7 +439,7 @@
       });
       if (res.status === 401) { logMsg("err", "You're signed out — reload and enter your word."); checkSession(); return; }
       const data = await res.json();
-      logMsg("bot", escapeHtml(data.reply), data.applied);
+      logMsg("bot", escapeHtml(data.reply), data.applied, data.attempted);
       updateBudget(data.budgetLeft);
     } catch (err) {
       logMsg("err", `Couldn't reach Claude: ${escapeHtml(String(err))}`);
@@ -590,7 +590,7 @@
       thinking.remove();
       if (res.status === 401) { logMsg("err", "You're signed out — reload and enter your word."); checkSession(); return; }
       const data = await res.json();
-      logMsg("bot", escapeHtml(data.reply), data.applied);
+      logMsg("bot", escapeHtml(data.reply), data.applied, data.attempted);
       updateBudget(data.budgetLeft);
     } catch (err) {
       thinking.remove();
@@ -605,11 +605,23 @@
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#chatForm").requestSubmit(); }
   });
 
-  function logMsg(kind, html, applied) {
+  /* `attempted` matters as much as `applied`. A reply saying "Added a bullet to
+     the camping list" over a document that did not move is the one failure that
+     makes people stop trusting this — reported Aug 7, 2026. Zero-of-something is
+     now stated in the same red the errors use, rather than rendering as nothing
+     at all and reading like success. */
+  function logMsg(kind, html, applied, attempted) {
     const el = document.createElement("div");
     el.className = `msg ${kind}`;
     const who = kind === "bot" ? `<span class="who">Claude</span>` : kind === "err" ? `<span class="who">Failed</span>` : "";
-    const note = applied ? `<div class="applied">${applied} block${applied === 1 ? "" : "s"} changed</div>` : "";
+
+    let note = "";
+    if (applied) {
+      note = `<div class="applied">${applied} block${applied === 1 ? "" : "s"} changed</div>`;
+    } else if (attempted) {
+      note = `<div class="applied nothing">nothing changed — ${attempted} edit${attempted === 1 ? "" : "s"} attempted, 0 landed</div>`;
+    }
+
     el.innerHTML = `${who}<p>${html}</p>${note}`;
     chatLog.appendChild(el);
     chatLog.scrollTop = chatLog.scrollHeight;
